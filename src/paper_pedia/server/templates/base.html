@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Paper Pedia{% endblock %}</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', path='/logo.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', path='/logo.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+<nav class="topbar"><a class="brand" href="/"><img class="brand-logo" src="{{ url_for('static', path='/logo.png') }}" alt="" width="42" height="42"><span>Paper Pedia</span></a><span class="nav-note">Your local research library</span><a href="/search">Search</a><a href="/docs">API docs ↗</a></nav>
+<main class="container">{% block content %}{% endblock %}</main>
+<footer>Paper Pedia <span>·</span> Metadata from <a href="https://papers.cool/" target="_blank" rel="noopener noreferrer">Papers Cool</a> <span>·</span> Stored locally, ready to explore.</footer>
+</body>
+</html>

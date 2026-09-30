@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Search · Paper Pedia{% endblock %}
+{% block content %}
+<a class="back" href="/">← All venues</a><header class="hero"><div><p class="eyebrow">COLLECTION SEARCH</p><h1>Find the relevant papers.</h1><p>Search titles and abstracts within one venue, year, and section.</p></div></header>
+<section class="search-panel"><form action="/search" method="get" class="search-form">
+<label class="collection-field">Collection<select name="selection" required><option value="">Choose a rendered collection</option>{% for option in options %}<option value="{{ option.value }}" {{ 'selected' if option.value == selection else '' }}>{{ option.label }}</option>{% endfor %}</select></label>
+<label class="search-field">Keywords<input name="q" type="search" maxlength="1000" value="{{ q }}" placeholder="e.g. graph neural networks" required></label><label>Top k<input name="k" type="number" min="1" max="100" value="{{ k }}" required></label><button type="submit">Search</button></form>
+{% if index_info %}<div class="index-controls"><span class="badge {{ 'cached' if index_info.indexed else 'uncached' }}">{{ index_info.label }}</span>{% if index_info.updated_at %}<span>Updated {{ index_info.updated_at }}</span>{% endif %}{% if index_info.state != 'uncached' %}<form action="/indices/build?{{ index_query }}&amp;destination=search&amp;force={{ 'true' if index_info.state != 'missing' else 'false' }}&amp;q={{ q|urlencode }}&amp;k={{ k }}" method="post"><button class="render-btn" type="submit">{{ 'Reindex' if index_info.state != 'missing' else 'Index collection' }}</button></form>{% endif %}</div>{% endif %}
+{% if not options %}<p>Render a collection from the home page first, then index it to enable search.</p>{% endif %}</section>
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+{% if q|trim and index_info and not error %}<div class="section-heading"><h2>{{ papers|length }} result{{ '' if papers|length == 1 else 's' }}</h2><p>{{ venue }} {{ year }} · {{ group or 'All papers' }} · Top {{ k }} by similarity</p></div>{% include "_paper_cards.html" %}{% endif %}
+{% endblock %}

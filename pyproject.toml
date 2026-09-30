@@ -1,0 +1,24 @@
+[project]
+name = "paper-pedia"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "DEBASMITROY2002", email = "ddruk2018@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "bs4>=0.0.2",
+    "fastapi>=0.142.1",
+    "jinja2>=3.1.6",
+    "requests>=2.34.2",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+paper-pedia = "paper_pedia:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"

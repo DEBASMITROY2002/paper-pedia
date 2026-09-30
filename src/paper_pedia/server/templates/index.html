@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="hero"><div><p class="eyebrow">THE CONFERENCE LIBRARY</p><h1>Find your next idea.</h1><p>Browse venues, explore papers, and build your local research collection.</p></div><form action="/cache/refresh" method="post"><button type="submit">↻ Refresh catalog</button></form></header>
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+<section class="stats" aria-label="Library overview"><div><strong>{{ cards|length }}</strong><span>Available venues</span></div><div><strong>{{ year_count }}</strong><span>Venue editions</span></div><div><strong>{{ cache_count }}</strong><span>Cached collections</span></div><div class="timestamp"><span>Catalog last refreshed</span><b>{{ updated_at or 'Not cached yet' }}</b></div></section>
+<div class="section-heading"><h2>Browse all venues</h2><p>Expand a venue to browse its years and sections.</p></div>
+<div class="venue-grid">
+{% for card in cards %}
+<details class="venue-card"><summary class="venue-header"><h2>{{ card.venue }}</h2><span>{{ card.years }} years</span><span class="venue-toggle" aria-hidden="true">›</span></summary><div class="table-scroll"><table>
+<thead><tr><th>Year</th><th>Section</th><th>Cache</th><th>Actions</th></tr></thead><tbody>
+{% for row in card.rows %}<tr class="{{ 'year-row' if not row.group else '' }}"><td>{{ row.year }}</td><td>{{ row.group or 'All papers' }}</td><td><span class="badge {{ 'cached' if row.cached else 'uncached' }}" title="{{ row.updated_at or 'No local CSV yet' }}">{{ 'Cached' if row.cached else 'Not cached' }}</span>{% if row.cached %}<small>{{ row.updated_at }}</small>{% endif %}{% if row.cached %}<small><span class="badge {{ 'cached' if row.index_info.indexed else 'uncached' }}">{{ row.index_info.label }}</span></small>{% endif %}</td><td><div class="row-actions"><a class="render-btn" href="/papers?{{ row.query }}">{{ 'Open' if row.cached else 'Render' }} ↗</a><form action="/papers/refresh?{{ row.query }}" method="post"><button class="quiet" type="submit" aria-label="Refresh {{ card.venue }} {{ row.year }} {{ row.group or 'all papers' }}">↻ Refresh</button></form>{% if row.cached %}<form action="/indices/build?{{ row.query }}&amp;force={{ 'true' if row.index_info.state != 'missing' else 'false' }}" method="post"><button class="render-btn" type="submit">{{ 'Reindex' if row.index_info.state != 'missing' else 'Index' }}</button></form><a class="render-btn" href="/search?{{ row.query }}">Search</a>{% endif %}</div></td></tr>{% endfor %}
+</tbody></table></div></details>
+{% else %}<div class="empty"><h2>Your catalog is not available yet.</h2><p>Connect to the internet and choose Refresh catalog to load the available venues.</p></div>{% endfor %}
+</div>
+{% endblock %}

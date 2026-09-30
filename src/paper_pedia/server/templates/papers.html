@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ venue }} {{ year }} · Paper Pedia{% endblock %}
+{% block content %}
+{% if csv_file and not error %}
+<dialog class="render-dialog" id="render-result" aria-labelledby="render-result-title">
+<h2 id="render-result-title">{{ papers|length }} papers rendered</h2>
+<p>{{ venue }} {{ year }} · {{ group or 'All papers' }}</p>
+<p>Your results are saved in <strong>{{ csv_file }}</strong>.</p>
+<form method="dialog"><button autofocus>Continue browsing</button></form>
+</dialog>
+<script>document.getElementById('render-result').showModal();</script>
+{% endif %}
+<a class="back" href="/">← All venues</a>
+<header class="hero"><div><p class="eyebrow">{{ group or 'ALL PAPERS' }}</p><h1>{{ venue }} <span class="muted">{{ year }}</span></h1><p>{% if csv_file %}{{ papers|length }} papers · Cached locally · Updated {{ updated_at }}{% else %}Paper collection{% endif %}</p></div><div class="row-actions">{% if csv_file %}<a class="button secondary" href="/api/venues/csv?{{ query }}">Download CSV ↓</a>{% endif %}<form action="/papers/refresh?{{ query }}" method="post"><button type="submit">↻ Refresh papers</button></form></div></header>
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+{% if csv_file %}<p class="cache-info">Saved as {{ csv_file }}</p>{% endif %}
+{% if csv_file %}
+<section class="search-panel"><div class="section-heading"><h2>Search this collection</h2><span class="badge {{ 'cached' if index_info.indexed else 'uncached' }}">{{ index_info.label }}</span></div>
+<form action="/search" method="get" class="search-form"><input type="hidden" name="venue" value="{{ venue }}"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="group" value="{{ group }}"><label class="search-field">Keywords<input name="q" type="search" maxlength="1000" placeholder="Search titles and abstracts…" required></label><label>Top k<input name="k" type="number" min="1" max="100" value="10" required></label><button type="submit">Search</button></form>
+<form action="/indices/build?{{ query }}&amp;destination=papers&amp;force={{ 'true' if index_info.state != 'missing' else 'false' }}" method="post"><button class="quiet" type="submit">{{ 'Reindex collection' if index_info.state != 'missing' else 'Index collection to enable search' }}</button></form>
+</section>
+{% endif %}
+{% include "_paper_cards.html" %}
+{% endblock %}
