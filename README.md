@@ -7,13 +7,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12 or newer">
   <img src="https://img.shields.io/badge/FastAPI-server--rendered-009688?logo=fastapi&logoColor=white" alt="Built with FastAPI">
-  <img src="https://img.shields.io/badge/Search-SPLADE%20%7C%20TF--IDF%20%7C%20Jaccard-176c58" alt="Three search methods">
+  <img src="https://img.shields.io/badge/Search-CLIP%20%7C%20SPLADE%20%7C%20TF--IDF%20%7C%20Jaccard-176c58" alt="Four search methods">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="Apache 2.0 license"></a>
 </p>
 <p align="center">
   <a href="#why-paper-pedia">Why Paper Pedia?</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="#three-ways-to-find-a-paper">Search methods</a> ·
+  <a href="#four-ways-to-find-a-paper">Search methods</a> ·
   <a href="#your-data-your-files">Your data</a>
 </p>
 
@@ -49,7 +49,7 @@ For example, select **CVPR → 2026 → Oral**, build an index, and try:
 
 Choose **Neural sparse (SPLADE)** to rank by learned term relevance, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Each search stays within the selected collection.
 
-## Three ways to find a paper
+## Four ways to find a paper
 
 ### 🧠 Neural sparse · SPLADE
 
@@ -64,7 +64,15 @@ Encodes titles, abstracts, and queries with [`naver/splade-cocondenser-ensembled
 
 Try it when your research question uses different wording from a paper's title or abstract. Retrieval quality still depends on the collection and query. SPLADE scores are unnormalized dot products and can exceed 1.
 
-**Upgrading from CLIP:** existing CLIP indexes cannot be reused. Build SPLADE indexes for your cached collections; old CLIP data can remain as a backup. API clients should use `/api/venues/splade-index` and `mode=splade` in place of `/clip-index` and `mode=dense`.
+**CLIP and SPLADE coexist.** Each has independent indexes and model caches. Existing compatible CLIP indexes are reused; a changed CSV requires reindexing only the methods you want to search.
+
+### 🖼️ Dense · CLIP
+
+Uses the text encoder from `openai/clip-vit-base-patch32` to embed titles and abstracts. Long text is chunked, combined using token-count weighting, and normalized. Retrieval uses cosine similarity against dense float32 vectors in `src/data/clip_indices/<collection>.clip.sqlite3`.
+
+Choose **Dense (CLIP)** in the search radios, and use **Index CLIP / Reindex CLIP**. Both indexing and searching use the background queue. MPS is preferred on supported Macs, followed by CUDA and CPU; model files are cached in `src/data/models/clip`. CLIP search stays disabled until this collection has a fresh CLIP index, independently of SPLADE and TF-IDF.
+
+For API clients, build `/api/venues/clip-index` and search with `mode=dense`; SPLADE continues to use `/api/venues/splade-index` and `mode=splade`. Optional settings: `PAPER_PEDIA_CLIP_DEVICE=auto|mps|cuda|cpu` and `PAPER_PEDIA_CLIP_BATCH_SIZE=32`. CLIP ranks by image–text-trained representations, so compare its results with SPLADE for specialized scientific queries.
 
 ### 🔎 Sparse · TF-IDF
 
@@ -89,7 +97,7 @@ It reuses the TF-IDF index's normalized token sets. Repeating a word does not in
 
 Try it when you want an overlap-based comparison. “Subset” is the UI label; scoring uses Jaccard similarity, not a strict subset test.
 
-> Choose **Top k** from 1 to 100. Scores are similarity measures, not probabilities, and should not be compared directly across methods. All three methods return fewer than k results when fewer papers have a positive match.
+> Choose **Top k** from 1 to 100. Scores are similarity measures, not probabilities, and should not be compared directly across methods. SPLADE, TF-IDF, and Jaccard return fewer than k results when fewer papers have a positive match.
 
 ## Quick start
 

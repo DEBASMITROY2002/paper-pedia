@@ -11,3 +11,6 @@ CATALOG_CACHE = DATA_DIR / "catalog.json"
 TEMPLATE_DIR = SERVER_DIR / "templates"
 STATIC_DIR = SERVER_DIR / "static"
 VENUES_DIR.mkdir(parents=True, exist_ok=True)
+
+CLIP_INDICES_DIR = DATA_DIR / "clip_indices"
+CLIP_MODEL_DIR = DATA_DIR / "models" / "clip"

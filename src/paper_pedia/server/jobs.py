@@ -82,6 +82,8 @@ class ProgressHandler(logging.Handler):
             text = f"Processing papers: {count}" + (f" of {total.group(1)}" if total else '')
             if 'checkpoint saved' in message.lower(): text = f"Saved checkpoint: {count} papers. Still processing…"
             owner.update(identity, count=count, message=text)
+        elif 'Downloading CLIP' in message: owner.update(identity, message='Downloading the CLIP model for first use…')
+        elif 'Loading CLIP' in message: owner.update(identity, message='Loading the CLIP model…')
         elif 'Downloading SPLADE' in message: owner.update(identity, message='Downloading the SPLADE model for first use…')
         elif 'Loading SPLADE' in message: owner.update(identity, message='Loading the SPLADE model…')
 logging.getLogger('paper_pedia').addHandler(ProgressHandler())
@@ -96,7 +98,7 @@ class BackgroundRoute(APIRoute):
             from . import service
             path, query = request.url.path, request.query_params
             heavy = path in {'/papers', '/papers/refresh', '/cache/refresh', '/indices/build', '/api/venues/papers', '/api/venues/papers/refresh', '/api/venues/catalog/refresh', '/api/venues/search'}
-            heavy |= path in {'/api/venues/index', '/api/venues/splade-index'} and request.method == 'POST'
+            heavy |= path in {'/api/venues/index', '/api/venues/splade-index', '/api/venues/clip-index'} and request.method == 'POST'
             heavy |= path == '/search' and bool(query.get('q', '').strip())
             heavy |= path == '/api/venues/catalog' and query.get('refresh', '').lower() in {'true', '1'}
             if not heavy:
@@ -104,7 +106,7 @@ class BackgroundRoute(APIRoute):
                 except (OSError, ValueError, KeyError, TypeError): heavy = True
             if not heavy: return await handler(request)
             await request.body()
-            title = ('Search' if 'search' in path else 'Index '+('SPLADE' if 'splade' in path or query.get('scheme') == 'splade' else 'TF-IDF') if 'index' in path or 'indices' in path else 'Refresh catalog' if 'catalog' in path or path in {'/', '/cache/refresh'} else 'Render papers')
+            title = ('Search' if 'search' in path else 'Index '+('CLIP' if 'clip' in path or query.get('scheme') == 'dense' else 'SPLADE' if 'splade' in path or query.get('scheme') == 'splade' else 'TF-IDF') if 'index' in path or 'indices' in path else 'Refresh catalog' if 'catalog' in path or path in {'/', '/cache/refresh'} else 'Render papers')
             selection = parse_qs(query.get('selection', ''))
             fields = [query.get(name) or selection.get(name, [''])[0] for name in ['venue', 'year', 'group']]
             title += ' · ' + ' '.join(filter(None, fields)) if fields[0] else ''

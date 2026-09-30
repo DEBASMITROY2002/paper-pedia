@@ -90,7 +90,7 @@ class SpladeModeTests(unittest.TestCase):
         status,html=self.call('/search',query='venue=AAAI&year=2026&mode=splade')
         soup=BeautifulSoup(html,'html.parser')
         self.assertEqual(status,200)
-        self.assertEqual({i['value'] for i in soup.select('input[type=radio][name=mode]')},{'splade','sparse','subset'})
+        self.assertEqual({i['value'] for i in soup.select('input[type=radio][name=mode]')},{'dense','splade','sparse','subset'})
         self.assertEqual(soup.select_one('input[type=radio][checked]')['value'],'splade')
         self.assertIn('scheme=splade',html)
         self.assertEqual(self.call('/indices/build','POST','venue=AAAI&year=2026&scheme=splade')[0],303)
