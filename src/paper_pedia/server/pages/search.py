@@ -4,18 +4,19 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from .home import templates
 from .. import service
-router = APIRouter()
+from ..jobs import BackgroundRoute
+router = APIRouter(route_class=BackgroundRoute, )
 @router.get("/search", response_class=HTMLResponse)
 def search_page(request: Request, venue: str = "", year: int | None = None, group: str = "",
-    selection: str = Query("", max_length=2000), q: str = Query("", max_length=1000), k: int = Query(10, ge=1, le=100), mode: Literal["sparse", "dense", "subset"] = "sparse"):
+    selection: str = Query("", max_length=2000), q: str = Query("", max_length=1000), k: int = Query(10, ge=1, le=100), mode: Literal["sparse", "splade", "subset"] = "sparse"):
     error, code, results, info, options = "", 200, [], None, []
-    sparse_info, clip_info = None, None
+    sparse_info, splade_info = None, None
     try:
         catalog = service.get_catalog()
         for card in service.catalog_cards(catalog["venues"]):
             for row in card["rows"]:
                 if row["cached"]:
-                    options.append({"value": row["query"], "sparse_state": row["index_info"]["state"], "dense_state": row["clip_info"]["state"], "label": f"{card['venue']} {row['year']} · {row['group'] or 'All papers'}"})
+                    options.append({"value": row["query"], "sparse_state": row["index_info"]["state"], "splade_state": row["splade_info"]["state"], "label": f"{card['venue']} {row['year']} · {row['group'] or 'All papers'}"})
         if selection:
             values = parse_qs(selection, keep_blank_values=True)
             venue, year, group = values["venue"][0], int(values["year"][0]), values.get("group", [""])[0]
@@ -23,8 +24,8 @@ def search_page(request: Request, venue: str = "", year: int | None = None, grou
             service.validate_selection(venue, year, group)
             selection = service.selection_query(venue, year, group)
             sparse_info = service.collection_index_status(venue, year, group)
-            clip_info = service.collection_clip_status(venue, year, group)
-            info = clip_info if mode == "dense" else sparse_info
+            splade_info = service.collection_splade_status(venue, year, group)
+            info = splade_info if mode == "splade" else sparse_info
             if q.strip(): results = service.search_collection(venue, year, group, q, k, mode)
         elif q.strip(): error, code = "Choose a collection to search.", 400
     except service.SelectionError as exc: error, code = str(exc), 404
@@ -35,13 +36,13 @@ def search_page(request: Request, venue: str = "", year: int | None = None, grou
         context={"papers": results, "venue": venue, "year": year, "group": group, "selection": selection,
             "options": options, "q": q, "k": k, "index_info": info, "error": error,
             "index_query": service.selection_query(venue, year, group) if venue and year is not None else "",
-            "searching": True, "mode": mode, "sparse_info": sparse_info, "clip_info": clip_info,
-            "method_label": {"sparse": "Sparse (TF-IDF)", "dense": "Dense (CLIP)", "subset": "Subset (Jaccard)"}[mode]})
+            "searching": True, "mode": mode, "sparse_info": sparse_info, "splade_info": splade_info,
+            "method_label": {"sparse": "Sparse (TF-IDF)", "splade": "Neural sparse (SPLADE)", "subset": "Subset (Jaccard)"}[mode]})
 @router.post("/indices/build", response_class=HTMLResponse)
 def build_index(request: Request, venue: str, year: int, group: str = "", force: bool = False,
-    scheme: Literal["sparse", "dense"] = "sparse", destination: Literal["home", "papers", "search"] = "home", q: str = Query("", max_length=1000), k: int = Query(10, ge=1, le=100), mode: Literal["sparse", "dense", "subset"] = "sparse"):
+    scheme: Literal["sparse", "splade"] = "sparse", destination: Literal["home", "papers", "search"] = "home", q: str = Query("", max_length=1000), k: int = Query(10, ge=1, le=100), mode: Literal["sparse", "splade", "subset"] = "sparse"):
     try:
-        builder = service.build_collection_clip if scheme == "dense" else service.build_collection_index
+        builder = service.build_collection_splade if scheme == "splade" else service.build_collection_index
         builder(venue, year, group, force)
     except (service.SelectionError, service.ServiceError) as exc:
         return templates.TemplateResponse(request=request, name="index_error.html", status_code=404 if isinstance(exc, service.SelectionError) else 409,

@@ -1,12 +1,12 @@
 from urllib.parse import urlparse
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from paper_pedia.storage.csv_store import load_papers_csv
 from ..config import TEMPLATE_DIR
 from .. import service
-router = APIRouter()
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+from ..jobs import BackgroundRoute
+router = APIRouter(route_class=BackgroundRoute, )
+from ..templating import templates
 def safe_url(value):
     return value if value and urlparse(value).scheme in ("http", "https") else ""
 templates.env.filters["safe_url"] = safe_url
@@ -41,7 +41,7 @@ def render_papers(request, venue, year, group, refresh=False):
         context={"papers": rows, "venue": venue, "year": year, "group": group, "error": error,
             "query": service.selection_query(venue, year, group), "csv_file": path.name if path else None,
             "updated_at": service.cache_status(path)["updated_at"] if path else None,
-            "clip_info": service.clip_index.index_status(path, service.CLIP_INDICES_DIR) if path else {"state": "uncached", "indexed": False, "label": "Render first"},
+            "splade_info": service.splade_index.index_status(path, service.SPLADE_INDICES_DIR) if path else {"state": "uncached", "indexed": False, "label": "Render first"},
             "index_info": service.search_index.index_status(path, service.INDICES_DIR) if path else {"state": "uncached", "indexed": False, "label": "Render first"}})
 @router.get("/papers", response_class=HTMLResponse)
 def papers_page(request: Request, venue: str, year: int, group: str = "", refresh: bool = False):

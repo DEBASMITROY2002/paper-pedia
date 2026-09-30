@@ -1,15 +1,18 @@
 import hashlib, json, logging, re, time
 from datetime import datetime, timezone
 from threading import RLock
+from functools import lru_cache
 from urllib.parse import urlencode
 from paper_pedia.scraper.papers_cool import PapersCoolScraper, ScrapeError
 from paper_pedia.storage.csv_store import atomic_write, load_papers_csv, save_papers_csv
 from paper_pedia import index as search_index
-from paper_pedia.index import clip as clip_index, jaccard
-from .config import CATALOG_CACHE, VENUES_DIR, INDICES_DIR, CLIP_INDICES_DIR, CLIP_MODEL_DIR
+from paper_pedia.index import splade as splade_index, jaccard
+from .config import CATALOG_CACHE, VENUES_DIR, INDICES_DIR, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR
 logger = logging.getLogger(__name__)
 scraper = PapersCoolScraper()
 lock = RLock()
+@lru_cache(maxsize=None)
+def collection_lock(path): return RLock()
 class ServiceError(RuntimeError): pass
 class SelectionError(ValueError): pass
 class IndexUnavailable(ServiceError): pass
@@ -41,17 +44,16 @@ def refresh_catalog():
             raise ServiceError(str(exc)) from exc
 def get_catalog(refresh=False):
     if refresh: return refresh_catalog()
-    with lock:
-        try:
-            data = _read_catalog()
-            logger.info("Catalog cache hit venues=%d file=%s", len(data["venues"]), CATALOG_CACHE)
-            return data
-        except FileNotFoundError:
-            logger.info("Catalog cache miss file=%s", CATALOG_CACHE)
-            return refresh_catalog()
-        except (OSError, ValueError, KeyError, TypeError):
-            logger.warning("Catalog cache unreadable; rebuilding file=%s", CATALOG_CACHE, exc_info=True)
-            return refresh_catalog()
+    try:
+        data = _read_catalog()
+        logger.info("Catalog cache hit venues=%d file=%s", len(data["venues"]), CATALOG_CACHE)
+        return data
+    except FileNotFoundError:
+        logger.info("Catalog cache miss file=%s", CATALOG_CACHE)
+        return refresh_catalog()
+    except (OSError, ValueError, KeyError, TypeError):
+        logger.warning("Catalog cache unreadable; rebuilding file=%s", CATALOG_CACHE, exc_info=True)
+        return refresh_catalog()
 def csv_path(venue, year, group=""):
     if not re.fullmatch(r"[A-Za-z0-9_-]+", venue) or not 1900 <= int(year) <= 2200:
         raise SelectionError("Invalid venue or year.")
@@ -67,7 +69,7 @@ def validate_selection(venue, year, group=""):
 def get_papers(venue, year, group="", refresh=False):
     logger.info("Paper collection requested venue=%r year=%s group=%r refresh=%s; waiting for cache lock", venue, year, group or "All", refresh)
     started = time.perf_counter()
-    with lock:
+    with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         path = csv_path(venue, year, group)
         if path.exists() and not refresh:
@@ -110,7 +112,7 @@ def catalog_cards(catalog):
         rows = []
         for year, groups in sorted(years.items(), reverse=True):
             for group in [""] + groups:
-                rows.append({"year": year, "group": group, "query": selection_query(venue, year, group), **cache_status(csv_path(venue, year, group)), "index_info": search_index.index_status(csv_path(venue, year, group), INDICES_DIR), "clip_info": clip_index.index_status(csv_path(venue, year, group), CLIP_INDICES_DIR)})
+                rows.append({"year": year, "group": group, "query": selection_query(venue, year, group), **cache_status(csv_path(venue, year, group)), "index_info": search_index.index_status(csv_path(venue, year, group), INDICES_DIR), "splade_info": splade_index.index_status(csv_path(venue, year, group), SPLADE_INDICES_DIR)})
         cards.append({"venue": venue, "years": len(years), "rows": rows})
     return cards
 
@@ -118,26 +120,26 @@ def collection_index_status(venue, year, group=""):
     validate_selection(venue, year, group)
     return search_index.index_status(csv_path(venue, year, group), INDICES_DIR)
 def build_collection_index(venue, year, group="", force=False):
-    with lock:
+    with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         try: return search_index.build_index(csv_path(venue, year, group), INDICES_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
 def search_collection(venue, year, group, query, k=10, mode="sparse"):
-    with lock:
+    with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         try:
             path = csv_path(venue, year, group)
-            if mode == "dense": return clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k)
+            if mode == "splade": return splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k)
             if mode == "subset": return jaccard.search(path, INDICES_DIR, query, k)
             if mode != "sparse": raise SelectionError("Unknown search method.")
             return search_index.search(path, INDICES_DIR, query, k)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
 
-def collection_clip_status(venue, year, group=""):
+def collection_splade_status(venue, year, group=""):
     validate_selection(venue, year, group)
-    return clip_index.index_status(csv_path(venue, year, group), CLIP_INDICES_DIR)
-def build_collection_clip(venue, year, group="", force=False):
-    with lock:
+    return splade_index.index_status(csv_path(venue, year, group), SPLADE_INDICES_DIR)
+def build_collection_splade(venue, year, group="", force=False):
+    with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
-        try: return clip_index.build_index(csv_path(venue, year, group), CLIP_INDICES_DIR, CLIP_MODEL_DIR, force)
+        try: return splade_index.build_index(csv_path(venue, year, group), SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc

@@ -5,11 +5,15 @@
 <title>{% block title %}Paper Pedia{% endblock %}</title>
 <link rel="icon" type="image/png" href="{{ url_for('static', path='/logo.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', path='/logo.png') }}">
-<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+<link rel="stylesheet" href="{{ asset_url('style.css') }}">
+<link rel="stylesheet" href="{{ asset_url('jobs.css') }}">
 </head>
 <body>
 <nav class="topbar"><a class="brand" href="/"><img class="brand-logo" src="{{ url_for('static', path='/logo.png') }}" alt="" width="42" height="42"><span>Paper Pedia</span></a><span class="nav-note">Your local research library</span><a href="/search">Search</a><a href="/docs">API docs ↗</a></nav>
 <main class="container">{% block content %}{% endblock %}</main>
 <footer>Paper Pedia <span>·</span> Metadata from <a href="https://papers.cool/" target="_blank" rel="noopener noreferrer">Papers Cool</a> <span>·</span> Stored locally, ready to explore.</footer>
+<aside id="background-jobs" class="background-jobs" aria-label="Background tasks" hidden><div class="job-heading"><strong>Background tasks</strong><button type="button" id="jobs-minimize" aria-expanded="true">Minimize</button></div><div id="job-items"></div></aside>
+<div id="job-announcement" class="sr-only" role="status" aria-live="polite"></div>
+<script src="{{ asset_url('jobs.js') }}" defer></script>
 </body>
 </html>

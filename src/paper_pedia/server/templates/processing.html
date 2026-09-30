@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Processing · Paper Pedia{% endblock %}
+{% block content %}<section class="search-panel"><h1>Processing in background</h1><p>{{ job.title }}</p><p>You can continue browsing. The background popup will show progress and a link to your results.</p><a class="button" href="/">Browse venues</a> <a href="{{ job.result_url }}">Check results</a></section>{% endblock %}

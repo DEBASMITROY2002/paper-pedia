@@ -1,4 +1,4 @@
-import logging, re, time
+import logging, re, time, threading
 from urllib.parse import parse_qs, quote, urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
@@ -9,8 +9,13 @@ class ScrapeError(RuntimeError): pass
 class PapersCoolScraper:
     def __init__(self, page_size=10000, delay=0.75):
         self.page_size, self.delay = page_size, delay
-        self.session = requests.Session()
-        self.session.headers["User-Agent"] = "PaperPedia/0.2 (personal academic paper index)"
+        self._sessions = threading.local()
+    @property
+    def session(self):
+        if not hasattr(self._sessions, 'value'):
+            self._sessions.value = requests.Session()
+            self._sessions.value.headers['User-Agent'] = 'PaperPedia/0.2 (personal academic paper index)'
+        return self._sessions.value
     def _get(self, url, params=None):
         started = time.perf_counter()
         logger.debug("Upstream request url=%s params=%r", url, params)
