@@ -41,6 +41,7 @@ def render_papers(request, venue, year, group, refresh=False):
         context={"papers": rows, "venue": venue, "year": year, "group": group, "error": error,
             "query": service.selection_query(venue, year, group), "csv_file": path.name if path else None,
             "updated_at": service.cache_status(path)["updated_at"] if path else None,
+            "clip_info": service.clip_index.index_status(path, service.CLIP_INDICES_DIR) if path else {"state": "uncached", "indexed": False, "label": "Render first"},
             "index_info": service.search_index.index_status(path, service.INDICES_DIR) if path else {"state": "uncached", "indexed": False, "label": "Render first"}})
 @router.get("/papers", response_class=HTMLResponse)
 def papers_page(request: Request, venue: str, year: int, group: str = "", refresh: bool = False):

@@ -11,7 +11,7 @@ class RequestLoggingMiddleware:
         started, status, failed = time.perf_counter(), 500, False
         method, path = scope["method"], scope["path"]
         query = QueryParams(scope.get("query_string", b""))
-        selection = {key: query[key][:200] for key in ("venue", "year", "group", "refresh") if key in query}
+        selection = {key: query[key][:200] for key in ("venue", "year", "group", "refresh", "mode", "scheme") if key in query}
         logger.info("Request started method=%s path=%r selection=%r", method, path, selection)
         async def logged_send(message):
             nonlocal status

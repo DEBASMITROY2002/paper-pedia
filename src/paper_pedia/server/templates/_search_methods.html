@@ -1,0 +1,1 @@
+<fieldset class="search-methods"><legend>Search method</legend>{% for value, label in [('dense', 'Dense (CLIP)'), ('sparse', 'Sparse (TF-IDF)'), ('subset', 'Subset (Jaccard)')] %}<label><input type="radio" name="mode" value="{{ value }}" {{ 'checked' if mode|default('sparse') == value else '' }}>{{ label }}</label>{% endfor %}</fieldset>

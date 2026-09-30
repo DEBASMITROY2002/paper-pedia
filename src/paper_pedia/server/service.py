@@ -5,7 +5,8 @@ from urllib.parse import urlencode
 from paper_pedia.scraper.papers_cool import PapersCoolScraper, ScrapeError
 from paper_pedia.storage.csv_store import atomic_write, load_papers_csv, save_papers_csv
 from paper_pedia import index as search_index
-from .config import CATALOG_CACHE, VENUES_DIR, INDICES_DIR
+from paper_pedia.index import clip as clip_index, jaccard
+from .config import CATALOG_CACHE, VENUES_DIR, INDICES_DIR, CLIP_INDICES_DIR, CLIP_MODEL_DIR
 logger = logging.getLogger(__name__)
 scraper = PapersCoolScraper()
 lock = RLock()
@@ -109,7 +110,7 @@ def catalog_cards(catalog):
         rows = []
         for year, groups in sorted(years.items(), reverse=True):
             for group in [""] + groups:
-                rows.append({"year": year, "group": group, "query": selection_query(venue, year, group), **cache_status(csv_path(venue, year, group)), "index_info": search_index.index_status(csv_path(venue, year, group), INDICES_DIR)})
+                rows.append({"year": year, "group": group, "query": selection_query(venue, year, group), **cache_status(csv_path(venue, year, group)), "index_info": search_index.index_status(csv_path(venue, year, group), INDICES_DIR), "clip_info": clip_index.index_status(csv_path(venue, year, group), CLIP_INDICES_DIR)})
         cards.append({"venue": venue, "years": len(years), "rows": rows})
     return cards
 
@@ -121,8 +122,22 @@ def build_collection_index(venue, year, group="", force=False):
         validate_selection(venue, year, group)
         try: return search_index.build_index(csv_path(venue, year, group), INDICES_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
-def search_collection(venue, year, group, query, k=10):
+def search_collection(venue, year, group, query, k=10, mode="sparse"):
     with lock:
         validate_selection(venue, year, group)
-        try: return search_index.search(csv_path(venue, year, group), INDICES_DIR, query, k)
+        try:
+            path = csv_path(venue, year, group)
+            if mode == "dense": return clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k)
+            if mode == "subset": return jaccard.search(path, INDICES_DIR, query, k)
+            if mode != "sparse": raise SelectionError("Unknown search method.")
+            return search_index.search(path, INDICES_DIR, query, k)
+        except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
+
+def collection_clip_status(venue, year, group=""):
+    validate_selection(venue, year, group)
+    return clip_index.index_status(csv_path(venue, year, group), CLIP_INDICES_DIR)
+def build_collection_clip(venue, year, group="", force=False):
+    with lock:
+        validate_selection(venue, year, group)
+        try: return clip_index.build_index(csv_path(venue, year, group), CLIP_INDICES_DIR, CLIP_MODEL_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc

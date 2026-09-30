@@ -1,0 +1,4 @@
+{% set ready = index_info and index_info.indexed %}
+<button type="submit" data-search-submit aria-describedby="search-index-status" {{ '' if ready else 'disabled' }}>Search</button>
+<p id="search-index-status" class="search-index-status" data-search-status role="status" aria-live="polite">{% if ready %}Ready to search.{% elif not index_info %}Choose a collection to search.{% elif index_info.state == 'stale' %}Index out of date. Reindex to search.{% elif index_info.state == 'invalid' %}Index unavailable. Reindex to search.{% else %}Not yet indexed. Index this collection to search.{% endif %}</p>
+<script src="{{ url_for('static', path='/search.js') }}" defer></script>
