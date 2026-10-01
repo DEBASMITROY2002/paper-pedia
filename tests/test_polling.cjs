@@ -1,0 +1,20 @@
+const assert = require('node:assert/strict');
+const create = require('../src/paper_pedia/server/static/activity-poller.js');
+(async () => {
+  let clock=0,timer=null,calls=0,finished=false;
+  const poller=create(async()=>{calls++;return finished;},{now:()=>clock,later:(fn,delay)=>(timer={fn,delay}),cancel:()=>timer=null});
+  assert.equal(timer,null);poller.activity();assert.equal(timer.delay,0);
+  await timer.fn();assert.equal(calls,1);assert.equal(timer.delay,1500);
+  clock=60000;await timer.fn();assert.equal(timer.delay,3000);
+  await timer.fn();assert.equal(timer.delay,6000);
+  for(let i=0;i<6;i++)await timer.fn();assert.equal(timer.delay,60000);
+  poller.activity();await timer.fn();assert.equal(timer.delay,1500);
+  finished=true;await timer.fn();assert.equal(timer.delay,3000);
+  poller.activity();finished=false;await timer.fn();assert.equal(timer.delay,1500);
+  poller.stop();assert.equal(timer,null);
+  let release,active=0,peak=0;
+  const p=create(()=>new Promise(resolve=>{active++;peak=Math.max(peak,active);release=()=>{active--;resolve(true);};}),{now:()=>clock,later:(fn,delay)=>(timer={fn,delay}),cancel:()=>timer=null});
+  p.activity();const pending=timer.fn();p.activity();p.activity();release();await pending;
+  assert.equal(peak,1);assert.equal(timer.delay,1500);p.stop();
+  console.log('Polling checks passed: no idle startup, timeout/result backoff, cap, activity reset, and one in-flight request.');
+})();
