@@ -101,5 +101,8 @@ class ClipEncoder:
             except RuntimeError:
                 logger.warning("CLIP vector scoring falling back to CPU", exc_info=True)
                 return matrix @ query
+_load_lock = threading.RLock()
 @lru_cache(maxsize=1)
-def get_encoder(cache_dir): return ClipEncoder(cache_dir)
+def _cached_encoder(cache_dir): return ClipEncoder(cache_dir)
+def get_encoder(cache_dir):
+    with _load_lock: return _cached_encoder(cache_dir)

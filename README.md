@@ -7,13 +7,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white" alt="Python 3.12 or newer">
   <img src="https://img.shields.io/badge/FastAPI-server--rendered-009688?logo=fastapi&logoColor=white" alt="Built with FastAPI">
-  <img src="https://img.shields.io/badge/Search-CLIP%20%7C%20TF--IDF%20%7C%20Jaccard-176c58" alt="Three search methods">
+  <img src="https://img.shields.io/badge/Search-CLIP%20%7C%20SPLADE%20%7C%20TF--IDF%20%7C%20Jaccard-176c58" alt="Four search methods">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="Apache 2.0 license"></a>
 </p>
 <p align="center">
   <a href="#why-paper-pedia">Why Paper Pedia?</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="#three-ways-to-find-a-paper">Search methods</a> ·
+  <a href="#four-ways-to-find-a-paper">Search methods</a> ·
   <a href="#your-data-your-files">Your data</a>
 </p>
 
@@ -27,7 +27,7 @@ It is useful when you want to:
 
 - **Start a literature review.** Search a specific conference edition instead of sorting through unrelated years and venues.
 - **Catch up on a research area.** Explore collections from ICLR, CVPR, NeurIPS, ACL, and other venues discovered through Papers Cool.
-- **Find familiar terminology or explore a topic.** Switch between keyword relevance, dense text embeddings, and normalized word overlap.
+- **Find familiar terminology or explore a topic.** Switch between keyword relevance, learned sparse term expansion, and normalized word overlap.
 - **Return to the same collection without fetching it again.** Reuse local paper caches and search indexes across server restarts.
 - **Take the results into your own workflow.** Download CSVs for notebooks, analysis, reading lists, or another application.
 
@@ -39,7 +39,7 @@ Search runs on your machine. Once a collection and its required index/model are 
 
 1. **Expand a venue.** The home page lists available years and sections in collapsed venue cards.
 2. **Render a collection.** Paper Pedia loads its existing CSV or fetches the paper metadata and saves it locally.
-3. **Choose an index.** Build **TF-IDF** for Sparse and Subset search, or **CLIP** for Dense search.
+3. **Choose an index.** Build **TF-IDF** for Sparse and Subset search, or **SPLADE** for neural sparse search.
 4. **Ask your question.** Select a search method, enter a query, and choose how many results to return.
 5. **Explore the shortlist.** Read titles, authors, and abstracts; follow the original paper or PDF links.
 
@@ -47,20 +47,32 @@ For example, select **CVPR → 2026 → Oral**, build an index, and try:
 
 > reconstructing a 3D scene from a single image
 
-Choose **Dense (CLIP)** to rank by embedding similarity, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Each search stays within the selected collection.
+Choose **Neural sparse (SPLADE)** to rank by learned term relevance, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Each search stays within the selected collection.
 
-## Three ways to find a paper
+## Four ways to find a paper
 
-### 🧠 Dense · CLIP
+### 🧠 Neural sparse · SPLADE
 
-Encodes titles and abstracts with the text encoder from [`openai/clip-vit-base-patch32`](https://huggingface.co/openai/clip-vit-base-patch32), then ranks papers by cosine similarity to the query.
+Encodes titles, abstracts, and queries with [`naver/splade-cocondenser-ensembledistil`](https://huggingface.co/naver/splade-cocondenser-ensembledistil). The model learns weighted vocabulary terms, including related terms absent from the original text. Papers are ranked by the **dot product of their sparse weights and the query's sparse weights**.
 
-- Uses **MPS on supported Macs**, otherwise CUDA when available, then CPU.
-- Processes long text in chunks and combines their embeddings, so an abstract is not silently cut off at CLIP's token limit.
-- Caches the model locally after its initial download.
-- Has its own **Index CLIP / Reindex CLIP** controls and index files.
+- Stores only nonzero **term ID → weight** entries as indexed SQLite postings, alongside paper metadata. No dense embedding arrays are stored or loaded for retrieval.
+- Joins query terms directly to matching postings and returns the top k positive scores. No Qdrant service or separate database setup is needed.
+- Uses the canonical masked `max(log(1 + ReLU(logits)))` pooling. Long texts are chunked at the model's 512-token context limit; elementwise maximum merges their term weights.
+- Uses **MPS on supported Macs**, otherwise CUDA when available, then CPU; acceleration failures retry on CPU.
+- Keeps language context for the model after HTML, Unicode, and whitespace cleanup. TF-IDF's stemming and stop-word removal are not applied to SPLADE.
+- Caches the pinned model revision locally after its initial download, with independent **Index SPLADE / Reindex SPLADE** controls.
 
-Try it when you can describe what you are looking for but do not have an exact title or phrase. CLIP was trained for image–text alignment; its relevance for specialized research terminology can vary. The other search methods provide useful alternatives.
+Try it when your research question uses different wording from a paper's title or abstract. Retrieval quality still depends on the collection and query. SPLADE scores are unnormalized dot products and can exceed 1.
+
+**CLIP and SPLADE coexist.** Each has independent indexes and model caches. Existing compatible CLIP indexes are reused; a changed CSV requires reindexing only the methods you want to search.
+
+### 🖼️ Dense · CLIP
+
+Uses the text encoder from `openai/clip-vit-base-patch32` to embed titles and abstracts. Long text is chunked, combined using token-count weighting, and normalized. Retrieval uses cosine similarity against dense float32 vectors in `src/data/clip_indices/<collection>.clip.sqlite3`.
+
+Choose **Dense (CLIP)** in the search radios, and use **Index CLIP / Reindex CLIP**. Both indexing and searching use the background queue. MPS is preferred on supported Macs, followed by CUDA and CPU; model files are cached in `src/data/models/clip`. CLIP search stays disabled until this collection has a fresh CLIP index, independently of SPLADE and TF-IDF.
+
+For API clients, build `/api/venues/clip-index` and search with `mode=dense`; SPLADE continues to use `/api/venues/splade-index` and `mode=splade`. Optional settings: `PAPER_PEDIA_CLIP_DEVICE=auto|mps|cuda|cpu` and `PAPER_PEDIA_CLIP_BATCH_SIZE=32`. CLIP ranks by image–text-trained representations, so compare its results with SPLADE for specialized scientific queries.
 
 ### 🔎 Sparse · TF-IDF
 
@@ -85,7 +97,7 @@ It reuses the TF-IDF index's normalized token sets. Repeating a word does not in
 
 Try it when you want an overlap-based comparison. “Subset” is the UI label; scoring uses Jaccard similarity, not a strict subset test.
 
-> Choose **Top k** from 1 to 100. Scores are similarity measures, not probabilities, and should not be compared directly across methods. Sparse and Jaccard search return fewer than k results when fewer papers have a positive match.
+> Choose **Top k** from 1 to 100. Scores are similarity measures, not probabilities, and should not be compared directly across methods. SPLADE, TF-IDF, and Jaccard return fewer than k results when fewer papers have a positive match.
 
 ## Quick start
 
@@ -100,7 +112,7 @@ uv run uvicorn wsgi:app --app-dir src --reload
 
 Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
 
-On a fresh installation, the app fetches the venue catalog when needed. Rendering uncached papers needs internet access. The first CLIP indexing operation also downloads model weights; subsequent operations use the local cache.
+On a fresh installation, the app fetches the venue catalog when needed. Rendering uncached papers needs internet access. The first SPLADE indexing operation also downloads model weights; subsequent operations use the local cache.
 
 <details>
 <summary><strong>Prefer pip?</strong></summary>
@@ -128,6 +140,14 @@ On Windows, activate the environment with `.venv\Scripts\activate` instead.
 
 The scraper requests up to 10,000 entries at a time and continues paging if the source limits the response or more entries remain. A completed render shows a popup with the number of papers loaded.
 
+## Keep browsing while the work runs
+
+Rendering papers, refreshing caches, building indexes, and searches run in background worker threads. The request immediately returns **Processing in background**. A nonblocking popup follows you between pages and shows queued/running status, paper progress, completion counts, errors, and a **View results** link. Minimize it while you browse; dismiss completed jobs when finished. Completed indexes appear after refreshing the library or opening their result link.
+
+The queue runs up to three jobs at once and accepts up to 16 active/queued jobs. An identical request already in flight reuses its job. Writes to the same collection are serialized, and SPLADE model loading/inference is protected across threads. Other collections and cached catalog pages remain available. CSV checkpoints and atomic index replacement still protect existing results.
+
+Job history retains up to 32 entries; completed entries older than an hour are cleared when new work is submitted. History is local to the running process, not a durable task queue. Keep the server running while jobs finish.
+
 ## Your data, your files
 
 The default data directory is `src/data`, independent of the directory from which you start the server.
@@ -140,10 +160,10 @@ src/data/
 │   └── <collection>.partial.csv          # Present during an unfinished scrape
 ├── indices/
 │   └── CVPR.2026__Oral.tfidf.sqlite3      # TF-IDF and Jaccard
-├── clip_indices/
-│   └── CVPR.2026__Oral.clip.sqlite3       # CLIP embeddings
+├── splade_indices/
+│   └── CVPR.2026__Oral.splade.sqlite3       # Sparse SPLADE postings
 ├── models/
-│   └── clip/                            # Downloaded model and local text encoder
+│   └── splade/                            # Downloaded tokenizer and masked-language model
 └── logs/
     └── paper-pedia.log
 ```
@@ -161,28 +181,32 @@ Interactive API documentation is available at **[http://127.0.0.1:8000/docs](htt
 <details>
 <summary><strong>Example: render, index, and search a collection</strong></summary>
 
-```bash
-# Fetch or reuse the collection's paper CSV.
-curl --get http://127.0.0.1:8000/api/venues/papers \
-  --data-urlencode 'venue=CVPR' \
-  --data-urlencode 'year=2026' \
-  --data-urlencode 'group=Oral'
+Time-consuming API calls now return **HTTP 202**, with `id`, `state`, `status_url`, and `result_url`. Poll the status URL until `completed` or `failed`, then fetch the result URL for the original response (including its error status). An HTTP 429 means the queue is full.
 
-# Build the shared TF-IDF / Jaccard index.
-curl -X POST \
-  'http://127.0.0.1:8000/api/venues/index?venue=CVPR&year=2026&group=Oral'
-
-# Find the top 10 keyword matches.
-curl --get http://127.0.0.1:8000/api/venues/search \
-  --data-urlencode 'venue=CVPR' \
-  --data-urlencode 'year=2026' \
-  --data-urlencode 'group=Oral' \
-  --data-urlencode 'q=3D scene reconstruction' \
-  --data-urlencode 'mode=sparse' \
-  --data-urlencode 'k=10'
+```python
+import time, requests
+base = "http://127.0.0.1:8000"
+collection = {"venue": "CVPR", "year": 2026, "group": "Oral"}
+def finish(response):
+    response.raise_for_status()
+    if response.status_code != 202: return response.json()
+    job = response.json()
+    while job["state"] in {"queued", "running"}:
+        time.sleep(1)
+        status = requests.get(base + job["status_url"], timeout=30)
+        status.raise_for_status()
+        job = status.json()
+    result = requests.get(base + job["result_url"], timeout=30)
+    result.raise_for_status()
+    return result.json()
+finish(requests.get(base + "/api/venues/papers", params=collection, timeout=30))
+finish(requests.post(base + "/api/venues/splade-index", params=collection, timeout=30))
+results = finish(requests.get(base + "/api/venues/search", params={**collection,
+    "q": "3D scene reconstruction", "mode": "splade", "k": 10}, timeout=30))
+print(results["papers"])
 ```
 
-Use `mode=subset` for Jaccard. For Dense search, first POST to `/api/venues/clip-index` with the same collection parameters, then search with `mode=dense`. Add `force=true` to an indexing request to rebuild it.
+For TF-IDF and Jaccard, build `/api/venues/index` and search with `mode=sparse` or `mode=subset`. Add `force=true` to rebuild an index. `GET /api/jobs` lists retained jobs. Cached catalog and index-status reads remain immediate when the catalog is available.
 
 </details>
 
@@ -205,13 +229,13 @@ Optional environment variables:
 
 - `PAPER_PEDIA_DATA_DIR`: choose a different data directory; an absolute path is recommended.
 - `PAPER_PEDIA_LOG_LEVEL`: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`; defaults to `INFO`.
-- `PAPER_PEDIA_CLIP_DEVICE`: `auto`, `mps`, `cuda`, or `cpu`; defaults to `auto`.
-- `PAPER_PEDIA_CLIP_BATCH_SIZE`: embedding chunk batch size; defaults to `32`.
+- `PAPER_PEDIA_SPLADE_DEVICE`: `auto`, `mps`, `cuda`, or `cpu`; defaults to `auto`.
+- `PAPER_PEDIA_SPLADE_BATCH_SIZE`: embedding chunk batch size; defaults to `2` (bounded to 1–16).
 
 For example, to force CPU inference:
 
 ```bash
-PAPER_PEDIA_CLIP_DEVICE=cpu uv run uvicorn wsgi:app --app-dir src --reload
+PAPER_PEDIA_SPLADE_DEVICE=cpu uv run uvicorn wsgi:app --app-dir src --reload
 ```
 
 Logs are written to the terminal and `logs/paper-pedia.log` inside the configured data directory. The file rotates at 5 MB and retains up to three backups. Requests receive an `X-Request-ID` to help trace related log entries.
@@ -220,8 +244,8 @@ Logs are written to the terminal and `logs/paper-pedia.log` inside the configure
 
 - **Paper Pedia indexes metadata, not full PDFs.** PDF buttons link to external sources; PDF contents are not downloaded or searched.
 - **Caches do not expire automatically.** Use Refresh when you want newer data, then rebuild any stale indexes.
-- **Fetching and indexing are synchronous.** Large collections may take time; watch the backend logs for progress.
-- **Sparse indexing requires SQLite FTS5.** It is included in the Python environment used to develop this project.
+- **Background jobs run in one server process.** Use one Uvicorn worker. Active jobs and result pages are kept in memory; completed CSVs and indexes remain on disk. A graceful shutdown waits for jobs, while a forced restart requires retrying unfinished tasks.
+- **TF-IDF indexing requires SQLite FTS5.** It is included in the Python environment used to develop this project.
 - **The app is intended for local, single-user use.** Add authentication and deployment controls before exposing it publicly.
 - Despite its filename, `src/wsgi.py` exports an **ASGI** app. Run it with Uvicorn.
 
@@ -235,7 +259,7 @@ src/
     ├── cli.py               # Catalog and scraping commands
     ├── scraper/             # Papers Cool discovery and pagination
     ├── storage/             # CSV persistence and atomic writes
-    ├── index/               # TF-IDF, CLIP, preprocessing, and Jaccard
+    ├── index/               # TF-IDF, SPLADE, preprocessing, and Jaccard
     └── server/
         ├── apis/            # JSON and CSV endpoints
         ├── pages/           # Server-rendered page routes
@@ -245,12 +269,12 @@ src/
 
 ## Contributing
 
-Ideas, bug reports, and improvements are welcome. Useful areas to explore include additional paper sources, retrieval-quality evaluation, background indexing, and reading-list workflows.
+Ideas, bug reports, and improvements are welcome. Useful areas to explore include additional paper sources, retrieval-quality evaluation, retrieval evaluation, and reading-list workflows.
 
 If a collection fails to render, include the venue, year, section, and relevant request ID or log excerpt in an [issue](https://github.com/DEBASMITROY2002/paper-pedia/issues). For a search issue, include the selected method and a small example query.
 
 ## Acknowledgments and license
 
-Paper metadata is discovered through [Papers Cool](https://papers.cool/). Dense search uses [OpenAI's CLIP model](https://huggingface.co/openai/clip-vit-base-patch32), loaded locally through Transformers and PyTorch.
+Paper metadata is discovered through [Papers Cool](https://papers.cool/). Neural sparse search uses [NAVER's SPLADE model](https://huggingface.co/naver/splade-cocondenser-ensembledistil), loaded locally through Transformers and PyTorch. The model weights are licensed under **CC-BY-NC-SA-4.0**; see the model card for their terms. The implementation follows [SPLADE's published pooling method](https://github.com/naver/splade).
 
 Paper Pedia's code is licensed under [Apache 2.0](LICENSE). Papers, metadata sources, artwork, and model weights remain subject to their respective licenses and terms.

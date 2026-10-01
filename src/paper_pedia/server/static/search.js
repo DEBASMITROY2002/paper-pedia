@@ -7,8 +7,8 @@ document.querySelectorAll("form[data-indexed-search]").forEach(form => {
   const current = () => {
     const source = picker ? picker.selectedOptions[0] : form;
     const chosen = picker ? Boolean(picker.value) : Boolean(form.querySelector('[name="venue"]')?.value);
-    const states = {sparse: source?.dataset.sparseState || "missing", dense: source?.dataset.denseState || "missing"};
-    return {chosen, states, state: states[mode() === "dense" ? "dense" : "sparse"]};
+    const states = {dense: source?.dataset.denseState || "missing", sparse: source?.dataset.sparseState || "missing", splade: source?.dataset.spladeState || "missing"};
+    return {chosen, states, state: states[mode() === "subset" ? "sparse" : mode()]};
   };
   const update = () => {
     const {chosen, states, state} = current();
@@ -27,12 +27,12 @@ document.querySelectorAll("form[data-indexed-search]").forEach(form => {
       params.set("q", form.querySelector('[name="q"]').value);
       params.set("k", form.querySelector('[name="k"]').value);
       build.action = "/indices/build?" + params.toString();
-      build.querySelector("button").textContent = (states[scheme] === "missing" ? "Index " : "Reindex ") + (scheme === "dense" ? "CLIP" : "TF-IDF / Jaccard");
+      build.querySelector("button").textContent = (states[scheme] === "missing" ? "Index " : "Reindex ") + (scheme === "dense" ? "CLIP" : scheme === "splade" ? "SPLADE" : "TF-IDF / Jaccard");
     });
     panel.querySelectorAll("[data-index-label]").forEach(label => {
       const scheme = label.dataset.indexLabel, status = states[scheme];
       label.className = "badge " + (status === "indexed" ? "cached" : "uncached");
-      label.textContent = (scheme === "dense" ? "CLIP: " : "TF-IDF / Jaccard: ") + ({indexed: "Indexed", stale: "Needs reindex", invalid: "Index unavailable"}[status] || "Not yet indexed");
+      label.textContent = (scheme === "dense" ? "CLIP: " : scheme === "splade" ? "SPLADE: " : "TF-IDF / Jaccard: ") + ({indexed: "Indexed", stale: "Needs reindex", invalid: "Index unavailable"}[status] || "Not yet indexed");
     });
   };
   form.addEventListener("change", update);
