@@ -1,0 +1,27 @@
+name: paper-pedia
+services:
+  app:
+    build:
+      context: .
+    image: paper-pedia:local
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PAPER_PEDIA_PORT:-8000}:8000"
+    volumes:
+      - type: bind
+        source: ./src/data
+        target: /app/data
+        bind:
+          create_host_path: false
+    environment:
+      PAPER_PEDIA_DATA_DIR: /app/data
+      PAPER_PEDIA_CLIP_DEVICE: cpu
+      PAPER_PEDIA_SPLADE_DEVICE: cpu
+      PAPER_PEDIA_LOG_LEVEL: ${PAPER_PEDIA_LOG_LEVEL:-INFO}
+    stop_grace_period: 10m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

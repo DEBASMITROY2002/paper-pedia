@@ -1,0 +1,10 @@
+*
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!src/
+!src/wsgi.py
+!src/paper_pedia/
+!src/paper_pedia/**
+**/__pycache__/
+**/*.pyc

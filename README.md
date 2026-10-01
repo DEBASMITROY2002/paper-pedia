@@ -128,6 +128,27 @@ On Windows, activate the environment with `.venv\Scripts\activate` instead.
 
 </details>
 
+## Run with Docker
+
+```bash
+docker compose build
+docker compose up -d --wait
+```
+
+Open **http://127.0.0.1:8001**. To use a different host port, run `PAPER_PEDIA_PORT=8080 docker compose up -d`.
+
+Compose bind-mounts the existing **`./src/data`** directory to **`/app/data`**. CSVs, catalog, indexes, model downloads, and logs persist on your host; they are not copied into the image. Keep this directory present before starting. The image uses a cached dependency build stage, a slim Python runtime, a non-root application user, CPU-only Linux PyTorch wheels, and a health check. Local source edits require rebuilding the image.
+
+Docker Desktop runs Linux containers, so this setup uses **CPU inference**. Native macOS execution still uses MPS when available. Existing CLIP and SPLADE index files and model caches remain compatible. Linux hosts may need to grant UID 1000 write access to the mounted data directory. Use one app worker for the in-memory background queue, and avoid simultaneous refresh/index writes from both a native server and the container against the same collection.
+
+```bash
+docker compose logs -f app       # Follow backend logs
+docker compose ps               # Check health and port mapping
+docker compose down             # Stop; host data is retained
+```
+
+The container gets ten minutes to finish jobs during a graceful stop. If forced to stop before a job completes, retry that job after restart; completed caches and CSV checkpoints stay on the host.
+
 ## Built for collections you come back to
 
 - **Visible cache and index status.** See which collections are ready to open or search.
@@ -143,6 +164,8 @@ The scraper requests up to 10,000 entries at a time and continues paging if the 
 ## Keep browsing while the work runs
 
 Rendering papers, refreshing caches, building indexes, and searches run in background worker threads. The request immediately returns **Processing in background**. A nonblocking popup follows you between pages and shows queued/running status, paper progress, completion counts, errors, and a **View results** link. Minimize it while you browse; dismiss completed jobs when finished. Completed indexes appear after refreshing the library or opening their result link.
+
+The browser starts status polling after user activity, checking every 1.5 seconds. Once a task result is observed, or 60 seconds pass since the last click, intervals double to 3, 6, 12, 24, 48, then 60 seconds. Any click or form submission resets the interval. There is no periodic polling on an untouched fresh visit, and requests never overlap. Recent activity carries across page navigation in the same tab.
 
 The queue runs up to three jobs at once and accepts up to 16 active/queued jobs. An identical request already in flight reuses its job. Writes to the same collection are serialized, and SPLADE model loading/inference is protected across threads. Other collections and cached catalog pages remain available. CSV checkpoints and atomic index replacement still protect existing results.
 

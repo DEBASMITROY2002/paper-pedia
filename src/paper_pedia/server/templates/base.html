@@ -14,6 +14,7 @@
 <footer>Paper Pedia <span>·</span> Metadata from <a href="https://papers.cool/" target="_blank" rel="noopener noreferrer">Papers Cool</a> <span>·</span> Stored locally, ready to explore.</footer>
 <aside id="background-jobs" class="background-jobs" aria-label="Background tasks" hidden><div class="job-heading"><strong>Background tasks</strong><button type="button" id="jobs-minimize" aria-expanded="true">Minimize</button></div><div id="job-items"></div></aside>
 <div id="job-announcement" class="sr-only" role="status" aria-live="polite"></div>
+<script src="{{ asset_url('activity-poller.js') }}" defer></script>
 <script src="{{ asset_url('jobs.js') }}" defer></script>
 </body>
 </html>
