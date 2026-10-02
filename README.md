@@ -12,7 +12,9 @@
 </p>
 <p align="center">
   <a href="#why-paper-pedia">Why Paper Pedia?</a> ·
+  <a href="#see-it-in-action">Screenshots</a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#run-with-docker">Docker</a> ·
   <a href="#four-ways-to-find-a-paper">Search methods</a> ·
   <a href="#your-data-your-files">Your data</a>
 </p>
@@ -21,17 +23,40 @@
 
 A conference publishes thousands of papers. You have a research question, a few keywords, and limited time to work through them.
 
-Paper Pedia helps you turn that long list into a focused reading shortlist. Pick a **venue, year, and section**—for example, CVPR 2026 Oral—save its paper metadata locally, and search the collection using the method that fits your question.
+Paper Pedia helps you turn that long list into a focused reading shortlist. Pick a **venue, year, and section**—for example, CVPR 2026 Oral—save its paper metadata locally, and search using the method that fits your question. Stay within one collection or search across every indexed collection in your library, then mark useful papers and save your reading notes.
 
 It is useful when you want to:
 
 - **Start a literature review.** Search a specific conference edition instead of sorting through unrelated years and venues.
 - **Catch up on a research area.** Explore collections from ICLR, CVPR, NeurIPS, ACL, and other venues discovered through Papers Cool.
-- **Find familiar terminology or explore a topic.** Switch between keyword relevance, learned sparse term expansion, and normalized word overlap.
+- **Find familiar terminology or explore a topic.** Compare CLIP embeddings, SPLADE learned sparse terms, TF-IDF keywords, and Jaccard word overlap.
+- **Search across conference editions.** Global search combines matches from all collections indexed for your chosen method and removes duplicate paper IDs.
+- **Build a reading shortlist.** Mark papers and attach comments that follow each paper across collections.
+- **Pick up where you left off.** Previous queries appear as suggestions as you type, saved in your browser.
 - **Return to the same collection without fetching it again.** Reuse local paper caches and search indexes across server restarts.
 - **Take the results into your own workflow.** Download CSVs for notebooks, analysis, reading lists, or another application.
 
 Search runs on your machine. Once a collection and its required index/model are cached, searching that collection does not require a hosted inference service or an API key.
+
+## See it in action
+
+### Your conference dashboard
+
+Expand a venue to browse its years and sections. Cache badges and independent TF-IDF, SPLADE, and CLIP controls show what is ready to open, index, or refresh.
+
+![Paper Pedia dashboard showing expandable venues, cached collections, and indexing controls](assets/dashboard.png)
+
+### Search one venue collection
+
+Choose a venue, year, and section; switch between four search methods; and return your top k matches. Result cards include abstracts, source links, marks, and comments. The background panel keeps progress visible while you browse.
+
+![Venue search with four retrieval methods, index readiness, ranked papers, and background task status](assets/venue-search.png)
+
+### Search your whole indexed library
+
+Global search brings together results across indexed collections, with a source collection on each result. Use it to follow a research question across venues and years.
+
+![Global search showing ranked results across indexed collections and their source collection labels](assets/globalsearch.png)
 
 ## A small workflow with a useful payoff
 
@@ -39,15 +64,15 @@ Search runs on your machine. Once a collection and its required index/model are 
 
 1. **Expand a venue.** The home page lists available years and sections in collapsed venue cards.
 2. **Render a collection.** Paper Pedia loads its existing CSV or fetches the paper metadata and saves it locally.
-3. **Choose an index.** Build **TF-IDF** for Sparse and Subset search, or **SPLADE** for neural sparse search.
-4. **Ask your question.** Select a search method, enter a query, and choose how many results to return.
-5. **Explore the shortlist.** Read titles, authors, and abstracts; follow the original paper or PDF links.
+3. **Choose an index.** Build **TF-IDF** for Sparse and Subset search, **SPLADE** for neural sparse search, or **CLIP** for dense search.
+4. **Ask your question.** Choose **Venue search** or **Global search**, select a method, enter a query, and choose how many results to return.
+5. **Explore the shortlist.** Read titles, authors, and abstracts; follow paper or PDF links; mark promising papers and save comments.
 
 For example, select **CVPR → 2026 → Oral**, build an index, and try:
 
 > reconstructing a 3D scene from a single image
 
-Choose **Neural sparse (SPLADE)** to rank by learned term relevance, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Each search stays within the selected collection.
+Choose **Dense (CLIP)** for embedding similarity, **Neural sparse (SPLADE)** for learned term relevance, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Venue search stays within your selected collection; Global search searches all collections with a fresh index for that method.
 
 ## Four ways to find a paper
 
@@ -112,7 +137,7 @@ uv run uvicorn wsgi:app --app-dir src --reload
 
 Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
 
-On a fresh installation, the app fetches the venue catalog when needed. Rendering uncached papers needs internet access. The first SPLADE indexing operation also downloads model weights; subsequent operations use the local cache.
+On a fresh installation, the app fetches the venue catalog when needed. Rendering uncached papers needs internet access. The first CLIP or SPLADE operation also downloads the corresponding model weights; subsequent operations reuse the local model cache.
 
 <details>
 <summary><strong>Prefer pip?</strong></summary>
@@ -131,11 +156,12 @@ On Windows, activate the environment with `.venv\Scripts\activate` instead.
 ## Run with Docker
 
 ```bash
+mkdir -p src/data
 docker compose build
 docker compose up -d --wait
 ```
 
-Open **http://127.0.0.1:8001**. To use a different host port, run `PAPER_PEDIA_PORT=8080 docker compose up -d`.
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)**. To use a different host port, run `PAPER_PEDIA_PORT=8080 docker compose up -d`.
 
 Compose bind-mounts the existing **`./src/data`** directory to **`/app/data`**. CSVs, catalog, indexes, model downloads, and logs persist on your host; they are not copied into the image. Keep this directory present before starting. The image uses a cached dependency build stage, a slim Python runtime, a non-root application user, CPU-only Linux PyTorch wheels, and a health check. Local source edits require rebuilding the image.
 
@@ -152,7 +178,7 @@ The container gets ten minutes to finish jobs during a graceful stop. If forced 
 ## Built for collections you come back to
 
 - **Visible cache and index status.** See which collections are ready to open or search.
-- **Separate refresh controls.** Refresh the venue catalog, a collection's papers, or either search index independently.
+- **Separate refresh controls.** Refresh the venue catalog, a collection's papers, or each search index independently.
 - **Search readiness checks.** Search is disabled with **“Not yet indexed”** when the chosen collection and method lack an index. A changed CSV requires reindexing.
 - **Progress checkpoints.** Every 500 unique papers, the scraper saves a cumulative `.partial.csv` checkpoint.
 - **Safe replacements.** Failed downloads and failed index builds preserve the previous complete files.
@@ -167,7 +193,7 @@ Rendering papers, refreshing caches, building indexes, and searches run in backg
 
 The browser starts status polling after user activity, checking every 1.5 seconds. Once a task result is observed, or 60 seconds pass since the last click, intervals double to 3, 6, 12, 24, 48, then 60 seconds. Any click or form submission resets the interval. There is no periodic polling on an untouched fresh visit, and requests never overlap. Recent activity carries across page navigation in the same tab.
 
-The queue runs up to three jobs at once and accepts up to 16 active/queued jobs. An identical request already in flight reuses its job. Writes to the same collection are serialized, and SPLADE model loading/inference is protected across threads. Other collections and cached catalog pages remain available. CSV checkpoints and atomic index replacement still protect existing results.
+The queue has three worker threads and accepts up to 16 active/queued jobs. Memory-heavy search and indexing operations run one at a time to avoid overlapping model loads. An identical request already in flight reuses its job. Writes to the same collection are also serialized. Other collections and cached catalog pages remain available. CSV checkpoints and atomic index replacement still protect existing results.
 
 Job history retains up to 32 entries; completed entries older than an hour are cleared when new work is submitted. History is local to the running process, not a durable task queue. Keep the server running while jobs finish.
 
@@ -187,6 +213,12 @@ The server stores only modified records in `src/data/annotations.sqlite3` as `pa
 
 Annotations use the existing Docker data mount and persist across container rebuilds. They are shared by everyone using this local server. API clients can batch-read with `POST /api/annotations/lookup` (`{"paper_ids": ["id"]}`) and update with `PATCH /api/annotations` (`{"paper_id": "id", "marked": true}` or `{"paper_id": "id", "comment": "note"}`). Missing keys in a lookup mean `false` and `""`.
 
+## Your recent queries, ready to reuse
+
+Focus the search box or start typing to see matching previous queries. Paper Pedia remembers the latest **50 unique queries** in browser local storage and displays up to **eight suggestions** at a time. Choose one with a click or the arrow keys and Enter; Escape closes the dropdown.
+
+History is shared across venue and global search, collections, and methods on the same browser origin. It survives page reloads and stores query text rather than result pages. Use **Clear search history** to remove it. A different browser or host/port has its own history.
+
 ## Your data, your files
 
 The default data directory is `src/data`, independent of the directory from which you start the server.
@@ -194,15 +226,19 @@ The default data directory is `src/data`, independent of the directory from whic
 ```text
 src/data/
 ├── catalog.json
+├── annotations.sqlite3                 # Paper ID → mark and comment
 ├── venues/
 │   ├── CVPR.2026__Oral.csv
 │   └── <collection>.partial.csv          # Present during an unfinished scrape
 ├── indices/
 │   └── CVPR.2026__Oral.tfidf.sqlite3      # TF-IDF and Jaccard
 ├── splade_indices/
-│   └── CVPR.2026__Oral.splade.sqlite3       # Sparse SPLADE postings
+│   └── CVPR.2026__Oral.splade.sqlite3     # Sparse SPLADE postings
+├── clip_indices/
+│   └── CVPR.2026__Oral.clip.sqlite3       # Dense CLIP vectors
 ├── models/
-│   └── splade/                            # Downloaded tokenizer and masked-language model
+│   ├── splade/                          # SPLADE model and tokenizer
+│   └── clip/                            # CLIP model and tokenizer
 └── logs/
     └── paper-pedia.log
 ```
@@ -268,13 +304,16 @@ Optional environment variables:
 
 - `PAPER_PEDIA_DATA_DIR`: choose a different data directory; an absolute path is recommended.
 - `PAPER_PEDIA_LOG_LEVEL`: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`; defaults to `INFO`.
+- `PAPER_PEDIA_PORT`: Docker Compose host port; defaults to `8000`.
+- `PAPER_PEDIA_CLIP_DEVICE`: `auto`, `mps`, `cuda`, or `cpu`; defaults to `auto`.
+- `PAPER_PEDIA_CLIP_BATCH_SIZE`: CLIP embedding batch size; defaults to `32`.
 - `PAPER_PEDIA_SPLADE_DEVICE`: `auto`, `mps`, `cuda`, or `cpu`; defaults to `auto`.
 - `PAPER_PEDIA_SPLADE_BATCH_SIZE`: embedding chunk batch size; defaults to `2` (bounded to 1–16).
 
 For example, to force CPU inference:
 
 ```bash
-PAPER_PEDIA_SPLADE_DEVICE=cpu uv run uvicorn wsgi:app --app-dir src --reload
+PAPER_PEDIA_CLIP_DEVICE=cpu PAPER_PEDIA_SPLADE_DEVICE=cpu uv run uvicorn wsgi:app --app-dir src --reload
 ```
 
 Logs are written to the terminal and `logs/paper-pedia.log` inside the configured data directory. The file rotates at 5 MB and retains up to three backups. Requests receive an `X-Request-ID` to help trace related log entries.
@@ -293,12 +332,12 @@ Logs are written to the terminal and `logs/paper-pedia.log` inside the configure
 ```text
 src/
 ├── wsgi.py                  # Server entry point
-├── data/                    # Local collections, indexes, models, and logs
+├── data/                    # Collections, annotations, indexes, models, and logs
 └── paper_pedia/
     ├── cli.py               # Catalog and scraping commands
     ├── scraper/             # Papers Cool discovery and pagination
-    ├── storage/             # CSV persistence and atomic writes
-    ├── index/               # TF-IDF, SPLADE, preprocessing, and Jaccard
+    ├── storage/             # CSV persistence, annotations, and atomic writes
+    ├── index/               # CLIP, SPLADE, TF-IDF, Jaccard, and memory cleanup
     └── server/
         ├── apis/            # JSON and CSV endpoints
         ├── pages/           # Server-rendered page routes
@@ -308,12 +347,14 @@ src/
 
 ## Contributing
 
-Ideas, bug reports, and improvements are welcome. Useful areas to explore include additional paper sources, retrieval-quality evaluation, retrieval evaluation, and reading-list workflows.
+Ideas, bug reports, and improvements are welcome. Useful areas to explore include additional paper sources, retrieval-quality evaluation, and reading-list workflows.
 
 If a collection fails to render, include the venue, year, section, and relevant request ID or log excerpt in an [issue](https://github.com/DEBASMITROY2002/paper-pedia/issues). For a search issue, include the selected method and a small example query.
 
 ## Acknowledgments and license
 
 Paper metadata is discovered through [Papers Cool](https://papers.cool/). Neural sparse search uses [NAVER's SPLADE model](https://huggingface.co/naver/splade-cocondenser-ensembledistil), loaded locally through Transformers and PyTorch. The model weights are licensed under **CC-BY-NC-SA-4.0**; see the model card for their terms. The implementation follows [SPLADE's published pooling method](https://github.com/naver/splade).
+
+Dense search uses the text encoder from [OpenAI CLIP](https://huggingface.co/openai/clip-vit-base-patch32).
 
 Paper Pedia's code is licensed under [Apache 2.0](LICENSE). Papers, metadata sources, artwork, and model weights remain subject to their respective licenses and terms.
