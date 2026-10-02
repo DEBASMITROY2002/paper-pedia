@@ -1,3 +1,4 @@
+from .memory import operation
 import hashlib, itertools, json, logging, math, os, sqlite3, tempfile, time
 from contextlib import closing
 from datetime import datetime, timezone
@@ -38,6 +39,7 @@ def index_status(csv_path, directory):
 def _create_tokens(db):
     db.execute(f"CREATE VIRTUAL TABLE corpus USING fts5(text, content='', tokenize='{TOKENIZER}')")
     db.execute("CREATE VIRTUAL TABLE vocabulary USING fts5vocab(corpus, 'row')")
+@operation
 def build_index(csv_path, directory, force=False):
     csv_path = Path(csv_path)
     if csv_path.name.endswith(".partial.csv"): raise IndexFailure("Partial CSVs cannot be indexed. Finish rendering first.")
@@ -92,6 +94,7 @@ def _query_counts(query):
         _create_tokens(db)
         db.execute("INSERT INTO corpus(text) VALUES (?)", (normalize(query),))
         return dict(db.execute("SELECT term,cnt FROM vocabulary"))
+@operation
 def search(csv_path, directory, query, k=10):
     if not 1 <= k <= 100: raise ValueError("Top k must be between 1 and 100.")
     if not query.strip() or len(query) > 1000: raise ValueError("Enter a query between 1 and 1000 characters.")

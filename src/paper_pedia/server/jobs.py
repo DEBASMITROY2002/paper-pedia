@@ -82,6 +82,7 @@ class ProgressHandler(logging.Handler):
             text = f"Processing papers: {count}" + (f" of {total.group(1)}" if total else '')
             if 'checkpoint saved' in message.lower(): text = f"Saved checkpoint: {count} papers. Still processing…"
             owner.update(identity, count=count, message=text)
+        elif 'Global search progress' in message: owner.update(identity, message=message.replace('Global search progress', 'Searching indexed collections:'))
         elif 'Downloading CLIP' in message: owner.update(identity, message='Downloading the CLIP model for first use…')
         elif 'Loading CLIP' in message: owner.update(identity, message='Loading the CLIP model…')
         elif 'Downloading SPLADE' in message: owner.update(identity, message='Downloading the SPLADE model for first use…')
@@ -97,7 +98,7 @@ class BackgroundRoute(APIRoute):
         async def dispatch(request: Request):
             from . import service
             path, query = request.url.path, request.query_params
-            heavy = path in {'/papers', '/papers/refresh', '/cache/refresh', '/indices/build', '/api/venues/papers', '/api/venues/papers/refresh', '/api/venues/catalog/refresh', '/api/venues/search'}
+            heavy = path in {'/papers', '/papers/refresh', '/cache/refresh', '/indices/build', '/api/venues/papers', '/api/venues/papers/refresh', '/api/venues/catalog/refresh', '/api/venues/search', '/api/venues/search-all'}
             heavy |= path in {'/api/venues/index', '/api/venues/splade-index', '/api/venues/clip-index'} and request.method == 'POST'
             heavy |= path == '/search' and bool(query.get('q', '').strip())
             heavy |= path == '/api/venues/catalog' and query.get('refresh', '').lower() in {'true', '1'}

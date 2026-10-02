@@ -171,6 +171,22 @@ The queue runs up to three jobs at once and accepts up to 16 active/queued jobs.
 
 Job history retains up to 32 entries; completed entries older than an hour are cleared when new work is submitted. History is local to the running process, not a durable task queue. Keep the server running while jobs finish.
 
+## Global search and memory use
+
+Choose **Venue search** to search one collection or **Global search** to search all local collections with a fresh index for the selected method. Global search visits collections sequentially, combines the top matches, deduplicates by paper ID, and returns the overall top k. Each result names its source collection. Missing/stale indexes are excluded; collections that fail during retrieval are reported. TF-IDF scores use each collection's own IDF statistics, so their global ordering is an approximate comparison across collections.
+
+Use `GET /api/venues/search-all?q=...&mode=splade&k=10` for global API search. It uses the same background-job response as collection search and includes `collections_searched` and `skipped` in the final result.
+
+CLIP retrieval reads at most 256 document embeddings at a time and keeps only the top candidates. SPLADE/TF-IDF use SQLite postings. Memory-heavy search and indexing tasks serialize to prevent overlapping model loads. A global search shares its model only for that operation; afterward, encoder caches are cleared, temporary references are collected, and unused MPS/CUDA allocator caches are released. The same cleanup runs on failure and after indexing. A subsequent neural search reloads its model from disk, trading latency for lower idle memory use. Python/PyTorch libraries and operating-system allocators can retain baseline process memory even after embeddings are released; this does not promise zero RSS.
+
+## Mark papers and keep reading notes
+
+Every paper card has **Mark paper** and a **Comment** editor. Use **Save comment** to persist your note; clear it and save to remove it. Marks default to `false`, comments default to an empty string. Notes belong to the paper ID, so the same paper shares its annotation across collections and all four search modes.
+
+The server stores only modified records in `src/data/annotations.sqlite3` as `paper_id → (marked, comment)`. Resetting both values removes the record. CSVs and search indexes are not rewritten. Paper lists load annotations from the server, including when reopening an older background-job result. Independent field updates use database transactions, so toggling a mark does not overwrite a comment. Unsaved drafts show a reminder before leaving the page.
+
+Annotations use the existing Docker data mount and persist across container rebuilds. They are shared by everyone using this local server. API clients can batch-read with `POST /api/annotations/lookup` (`{"paper_ids": ["id"]}`) and update with `PATCH /api/annotations` (`{"paper_id": "id", "marked": true}` or `{"paper_id": "id", "comment": "note"}`). Missing keys in a lookup mean `false` and `""`.
+
 ## Your data, your files
 
 The default data directory is `src/data`, independent of the directory from which you start the server.

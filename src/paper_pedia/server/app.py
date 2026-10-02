@@ -22,6 +22,8 @@ app = FastAPI(title="Paper Pedia", version="0.2.0", lifespan=lifespan)
 app.add_middleware(RequestLoggingMiddleware)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(venues_router, prefix="/api")
+from .apis.annotations import router as annotations_router
+app.include_router(annotations_router)
 app.include_router(jobs_router)
 app.include_router(pages_router)
 app.include_router(search_router)

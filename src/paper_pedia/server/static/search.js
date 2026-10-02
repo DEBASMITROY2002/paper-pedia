@@ -1,12 +1,13 @@
 document.querySelectorAll("form[data-indexed-search]").forEach(form => {
   const button = form.querySelector("[data-search-submit]");
   const message = form.querySelector("[data-search-status]");
+  const globalSearch = form.dataset.scope === 'global';
   const picker = form.querySelector('[name="selection"]');
   const panel = form.closest(".search-panel");
   const mode = () => form.querySelector('[name="mode"]:checked')?.value || "sparse";
   const current = () => {
     const source = picker ? picker.selectedOptions[0] : form;
-    const chosen = picker ? Boolean(picker.value) : Boolean(form.querySelector('[name="venue"]')?.value);
+    const chosen = globalSearch || (picker ? Boolean(picker.value) : Boolean(form.querySelector('[name="venue"]')?.value));
     const states = {dense: source?.dataset.denseState || "missing", sparse: source?.dataset.sparseState || "missing", splade: source?.dataset.spladeState || "missing"};
     return {chosen, states, state: states[mode() === "subset" ? "sparse" : mode()]};
   };

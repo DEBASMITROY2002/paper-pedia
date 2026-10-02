@@ -52,3 +52,9 @@ def clip_status(venue: str, year: int, group: str = ""):
 @router.post("/clip-index")
 def clip_collection(venue: str, year: int, group: str = "", force: bool = False):
     return run(service.build_collection_clip, venue, year, group, force)
+
+@router.get('/search-all')
+def search_all(q: str = Query(..., min_length=1, max_length=1000), k: int = Query(10, ge=1, le=100), mode: Literal['sparse','subset','dense','splade'] = 'sparse'):
+    if not q.strip(): raise HTTPException(422, 'Enter a nonempty search query.')
+    result = run(service.search_global, q, k, mode)
+    return {**result, 'query': q, 'mode': mode, 'k': k, 'count': len(result['papers'])}
