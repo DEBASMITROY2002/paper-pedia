@@ -14,3 +14,9 @@ def asset_url(context, name):
     return str(context['request'].url_for('static', path='/' + name)) + '?v=' + version
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 templates.env.globals['asset_url'] = asset_url
+
+from paper_pedia.storage.annotations import lookup
+from .config import ANNOTATIONS_CACHE
+def paper_annotations(papers):
+    return lookup(ANNOTATIONS_CACHE, [paper['paper_id'] for paper in papers])
+templates.env.globals['paper_annotations'] = paper_annotations

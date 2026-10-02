@@ -14,3 +14,5 @@ VENUES_DIR.mkdir(parents=True, exist_ok=True)
 
 CLIP_INDICES_DIR = DATA_DIR / "clip_indices"
 CLIP_MODEL_DIR = DATA_DIR / "models" / "clip"
+
+ANNOTATIONS_CACHE = DATA_DIR / "annotations.sqlite3"

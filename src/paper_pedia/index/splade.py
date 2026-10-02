@@ -1,3 +1,4 @@
+from .memory import operation
 import json, logging, math, os, sqlite3, tempfile, time
 from contextlib import closing
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ def index_status(csv_path, directory):
 def _validate(weights):
     if any(not isinstance(term, int) or term < 0 or not math.isfinite(value) or value <= 0 for term, value in weights.items()):
         raise IndexFailure("Invalid SPLADE term weights; previous index preserved.")
+@operation
 def build_index(csv_path, directory, model_dir, force=False):
     csv_path = Path(csv_path)
     if csv_path.name.endswith(".partial.csv"): raise IndexFailure("Finish rendering before building a SPLADE index.")
@@ -63,6 +65,7 @@ def build_index(csv_path, directory, model_dir, force=False):
         raise IndexFailure("SPLADE indexing failed. Check server logs and retry.") from exc
     finally:
         if temp and temp.exists(): temp.unlink()
+@operation
 def search(csv_path, directory, model_dir, query, k=10):
     if not 1 <= k <= 100 or not query.strip() or len(query) > 1000: raise ValueError("Enter a query (1–1000 characters) and top k between 1 and 100.")
     state = index_status(csv_path, directory)

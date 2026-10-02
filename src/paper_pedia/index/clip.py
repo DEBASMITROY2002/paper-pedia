@@ -1,4 +1,5 @@
-import json, logging, os, sqlite3, tempfile, time
+from .memory import operation
+import heapq, json, logging, os, sqlite3, tempfile, time
 from contextlib import closing
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -20,6 +21,7 @@ def index_status(csv_path, directory):
     except (OSError, sqlite3.Error, ValueError, TypeError, KeyError, IndexError):
         logger.warning("CLIP index unreadable file=%s", path, exc_info=True)
         return _status("invalid")
+@operation
 def build_index(csv_path, directory, model_dir, force=False):
     csv_path = Path(csv_path)
     if csv_path.name.endswith(".partial.csv"): raise IndexFailure("Finish rendering before building a CLIP index.")
@@ -46,7 +48,6 @@ def build_index(csv_path, directory, model_dir, force=False):
             db.commit()
         if fingerprint(csv_path) != source_hash: raise IndexFailure("The CSV changed during CLIP indexing. Retry Reindex CLIP.")
         os.replace(temp, path)
-        _load.cache_clear()
         logger.info("CLIP index completed papers=%d device=%s file=%s duration_ms=%.1f", len(papers), meta["device"], path, (time.perf_counter() - started) * 1000)
         return index_status(csv_path, directory)
     except IndexFailure: raise
@@ -55,31 +56,35 @@ def build_index(csv_path, directory, model_dir, force=False):
         raise IndexFailure("CLIP indexing failed. Check server logs and retry.") from exc
     finally:
         if temp and temp.exists(): temp.unlink()
-@lru_cache(maxsize=2)
-def _load(path, signature):
-    import numpy as np
-    with closing(_connect(path)) as db:
-        meta = _metadata(db)
-        rows = list(db.execute("SELECT data,vector FROM documents ORDER BY doc"))
-    papers = [json.loads(row[0]) for row in rows]
-    matrix = np.stack([np.frombuffer(row[1], dtype="<f4") for row in rows]) if rows else np.zeros((0, meta["dimension"]), dtype=np.float32)
-    if len(papers) != meta["count"] or matrix.shape[1] != meta["dimension"] or not np.isfinite(matrix).all(): raise IndexFailure("Invalid CLIP index. Reindex this collection.")
-    return papers, matrix
-
+@operation
 def search(csv_path, directory, model_dir, query, k=10):
     if not 1 <= k <= 100 or not query.strip() or len(query) > 1000: raise ValueError("Enter a query (1–1000 characters) and top k between 1 and 100.")
     if not index_status(csv_path, directory)["indexed"]: raise IndexFailure("Build or refresh this collection's CLIP index before Dense search.")
     started, path = time.perf_counter(), index_path(csv_path, directory)
     try:
         import numpy as np
-        stat = path.stat()
-        papers, matrix = _load(str(path), (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size))
-        if not papers or not clean_text(query): return []
-        encoder = get_encoder(str(model_dir))
-        scores = encoder.scores(matrix, encoder.encode([query])[0])
-        if not np.isfinite(scores).all(): raise IndexFailure("Invalid CLIP scores; check server logs.")
-        order = np.argsort(-scores, kind="stable")[:k]
-        results = [{**papers[i], "score": float(np.clip(scores[i], -1, 1))} for i in order]
+        if not clean_text(query): return []
+        best = []
+        with closing(_connect(path)) as db:
+            meta = _metadata(db)
+            if not meta['count']: return []
+            encoder = get_encoder(str(model_dir))
+            needle = encoder.encode([query])[0]
+            cursor = db.execute('SELECT doc,vector FROM documents ORDER BY doc')
+            count = 0
+            while rows := cursor.fetchmany(256):
+                matrix = np.stack([np.frombuffer(row[1], dtype='<f4') for row in rows])
+                if matrix.shape[1] != meta['dimension'] or not np.isfinite(matrix).all(): raise IndexFailure('Invalid CLIP index. Reindex this collection.')
+                scores = encoder.scores(matrix, needle)
+                if not np.isfinite(scores).all(): raise IndexFailure('Invalid CLIP scores.')
+                for (doc, _), score in zip(rows, scores):
+                    candidate = (float(np.clip(score, -1, 1)), -doc)
+                    if len(best) < k: heapq.heappush(best, candidate)
+                    elif candidate > best[0]: heapq.heapreplace(best, candidate)
+                count += len(rows)
+                del matrix, scores, rows
+            if count != meta['count']: raise IndexFailure('Incomplete CLIP index. Reindex this collection.')
+            results = [{**json.loads(db.execute('SELECT data FROM documents WHERE doc=?', (-doc,)).fetchone()[0]), 'score': score} for score, doc in sorted(best, reverse=True)]
         logger.info("CLIP search completed collection=%s returned=%d device=%s duration_ms=%.1f", Path(csv_path).name, len(results), encoder.device, (time.perf_counter() - started) * 1000)
         return results
     except IndexFailure: raise

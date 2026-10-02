@@ -1,3 +1,4 @@
+from paper_pedia.index.memory import operation
 import hashlib, json, logging, re, time
 from datetime import datetime, timezone
 from threading import RLock
@@ -119,11 +120,13 @@ def catalog_cards(catalog):
 def collection_index_status(venue, year, group=""):
     validate_selection(venue, year, group)
     return search_index.index_status(csv_path(venue, year, group), INDICES_DIR)
+@operation
 def build_collection_index(venue, year, group="", force=False):
     with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         try: return search_index.build_index(csv_path(venue, year, group), INDICES_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
+@operation
 def search_collection(venue, year, group, query, k=10, mode="sparse"):
     with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
@@ -139,6 +142,7 @@ def search_collection(venue, year, group, query, k=10, mode="sparse"):
 def collection_splade_status(venue, year, group=""):
     validate_selection(venue, year, group)
     return splade_index.index_status(csv_path(venue, year, group), SPLADE_INDICES_DIR)
+@operation
 def build_collection_splade(venue, year, group="", force=False):
     with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
@@ -148,8 +152,40 @@ def build_collection_splade(venue, year, group="", force=False):
 def collection_clip_status(venue, year, group=""):
     validate_selection(venue, year, group)
     return clip_index.index_status(csv_path(venue, year, group), CLIP_INDICES_DIR)
+@operation
 def build_collection_clip(venue, year, group="", force=False):
     with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         try: return clip_index.build_index(csv_path(venue, year, group), CLIP_INDICES_DIR, CLIP_MODEL_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
+
+def indexed_collections(mode):
+    if mode not in {'dense', 'splade', 'sparse', 'subset'}: raise SelectionError('Unknown search method.')
+    engine, directory = (clip_index, CLIP_INDICES_DIR) if mode == 'dense' else (splade_index, SPLADE_INDICES_DIR) if mode == 'splade' else (search_index, INDICES_DIR)
+    for path in sorted(VENUES_DIR.glob('*.csv')):
+        if not path.name.endswith('.partial.csv') and engine.index_status(path, directory)['indexed']:
+            yield path
+@operation
+def search_global(query, k=10, mode='sparse'):
+    if not query.strip() or len(query)>1000 or not 1<=k<=100: raise SelectionError('Enter a query and top k between 1 and 100.')
+    best, searched, skipped = {}, 0, []
+    for path in indexed_collections(mode):
+        with collection_lock(str(path)):
+            try:
+                if mode=='dense': rows=clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k)
+                elif mode=='splade': rows=splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k)
+                elif mode=='subset': rows=jaccard.search(path, INDICES_DIR, query, k)
+                else: rows=search_index.search(path, INDICES_DIR, query, k)
+            except search_index.IndexFailure:
+                logger.exception('Global search skipped collection=%s', path.name)
+                skipped.append(path.name)
+                continue
+        searched += 1
+        for paper in rows:
+            identity=paper['paper_id']
+            if identity not in best or paper['score']>best[identity]['score']:
+                best[identity]={**paper, 'collection': path.stem}
+        best={p['paper_id']:p for p in sorted(best.values(), key=lambda p:(-p['score'],p['paper_id']))[:k]}
+        logger.info('Global search progress collections=%d returned=%d mode=%s', searched, len(best), mode)
+    if not searched: raise IndexUnavailable('No usable indexed collections for this method. Index a collection first.')
+    return {'papers': sorted(best.values(), key=lambda p:(-p['score'],p['paper_id'])), 'collections_searched': searched, 'skipped': skipped}

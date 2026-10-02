@@ -1,13 +1,14 @@
+from .memory import operation
 import heapq, json, logging, sqlite3, time
 from contextlib import closing
 from functools import lru_cache
 from pathlib import Path
 from .tfidf import IndexFailure, index_status, index_path, _query_counts, _connect
 logger = logging.getLogger(__name__)
-@lru_cache(maxsize=4)
 def _sizes(path, signature):
     with closing(_connect(path)) as db:
         return dict(db.execute("SELECT doc,COUNT(*) FROM postings GROUP BY doc"))
+@operation
 def search(csv_path, directory, query, k=10):
     if not 1 <= k <= 100 or not query.strip() or len(query) > 1000: raise ValueError("Enter a valid query and top k between 1 and 100.")
     if not index_status(csv_path, directory)["indexed"]: raise IndexFailure("Build or refresh the TF-IDF index before Subset (Jaccard) search.")

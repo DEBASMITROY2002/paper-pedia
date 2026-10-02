@@ -1,0 +1,5 @@
+{% set note = annotation_map.get(paper.paper_id, {'marked': false, 'comment': ''}) %}
+<div class="paper-annotation" data-paper-annotation="{{ paper.paper_id }}" data-marked="{{ 'true' if note.marked else 'false' }}">
+<div class="annotation-actions"><button type="button" class="quiet" data-mark aria-pressed="{{ 'true' if note.marked else 'false' }}" disabled>{{ '★ Marked' if note.marked else '☆ Mark paper' }}</button><span data-annotation-status role="status">Loading annotations…</span><button type="button" class="quiet" data-retry hidden>Retry</button></div>
+<details class="comment-editor" {{ 'open' if note.comment else '' }}><summary>Comment</summary><label>Your comment<textarea rows="3" maxlength="20000" data-saved="{{ note.comment }}" disabled placeholder="Add your notes about this paper…">{{ note.comment }}</textarea></label><button type="button" data-save-comment disabled>Save comment</button></details>
+</div>
