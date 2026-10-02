@@ -74,6 +74,17 @@ For example, select **CVPR → 2026 → Oral**, build an index, and try:
 
 Choose **Dense (CLIP)** for embedding similarity, **Neural sparse (SPLADE)** for learned term relevance, **Sparse (TF-IDF)** for distinctive terms, or **Subset (Jaccard)** for word-set overlap. Venue search stays within your selected collection; Global search searches all collections with a fresh index for that method.
 
+## Include what matters, exclude what does not
+
+The optional **Exclude concepts** field reduces the relevance of unwanted topics in both venue and global search. For example, search for `graph learning` and exclude `image reconstruction`. This is a relevance penalty, not a strict keyword filter; no reindexing is needed.
+
+- **CLIP:** subtract the normalized exclude embedding from the normalized include embedding, then score documents against that difference without renormalizing it.
+- **SPLADE:** subtract sparse exclude weights from include weights, retaining negative terms for the document dot product.
+- **TF-IDF:** build both query vectors using the collection's IDF, normalize each, then subtract and score against document vectors.
+- **Jaccard:** subtract the exclude/document Jaccard similarity from the include/document similarity.
+
+An empty exclusion preserves ordinary search. Identical include and exclude representations cancel and return no matches. Sparse and Jaccard searches return only positive net scores; CLIP can return negative scores. API searches accept `exclude=...` alongside `q=...`.
+
 ## Four ways to find a paper
 
 ### 🧠 Neural sparse · SPLADE
@@ -215,7 +226,7 @@ Annotations use the existing Docker data mount and persist across container rebu
 
 ## Light and dark mode
 
-Use the **Dark mode / Light mode** button in the navigation bar to switch themes. The app follows your system appearance on the first visit, then remembers your choice in this browser and keeps other open tabs in sync. Both themes cover the dashboard, search results, notes, and background task panel.
+Use the **Dark mode / Light mode** button in the navigation bar to switch themes. The app follows your system appearance on the first visit, then remembers your choice in this browser and keeps other open tabs in sync. Both themes cover the dashboard, search results, notes, and background task panel. Subtle entrance and interaction animations respect your system’s reduced-motion preference.
 
 ## Your recent queries, ready to reuse
 

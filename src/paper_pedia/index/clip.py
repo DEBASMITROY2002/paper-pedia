@@ -57,7 +57,8 @@ def build_index(csv_path, directory, model_dir, force=False):
     finally:
         if temp and temp.exists(): temp.unlink()
 @operation
-def search(csv_path, directory, model_dir, query, k=10):
+def search(csv_path, directory, model_dir, query, k=10, exclude=""):
+    if len(exclude) > 1000: raise ValueError("Exclude concepts must be at most 1000 characters.")
     if not 1 <= k <= 100 or not query.strip() or len(query) > 1000: raise ValueError("Enter a query (1–1000 characters) and top k between 1 and 100.")
     if not index_status(csv_path, directory)["indexed"]: raise IndexFailure("Build or refresh this collection's CLIP index before Dense search.")
     started, path = time.perf_counter(), index_path(csv_path, directory)
@@ -69,7 +70,9 @@ def search(csv_path, directory, model_dir, query, k=10):
             meta = _metadata(db)
             if not meta['count']: return []
             encoder = get_encoder(str(model_dir))
-            needle = encoder.encode([query])[0]
+            vectors = encoder.encode([query, exclude] if clean_text(exclude) else [query])
+            needle = vectors[0] - vectors[1] if len(vectors) == 2 else vectors[0]
+            if not np.any(needle): return []
             cursor = db.execute('SELECT doc,vector FROM documents ORDER BY doc')
             count = 0
             while rows := cursor.fetchmany(256):
@@ -78,7 +81,7 @@ def search(csv_path, directory, model_dir, query, k=10):
                 scores = encoder.scores(matrix, needle)
                 if not np.isfinite(scores).all(): raise IndexFailure('Invalid CLIP scores.')
                 for (doc, _), score in zip(rows, scores):
-                    candidate = (float(np.clip(score, -1, 1)), -doc)
+                    candidate = (float(score), -doc)
                     if len(best) < k: heapq.heappush(best, candidate)
                     elif candidate > best[0]: heapq.heapreplace(best, candidate)
                 count += len(rows)

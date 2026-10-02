@@ -26,6 +26,7 @@ document.querySelectorAll("form[data-indexed-search]").forEach(form => {
       params.set("destination", "search");
       params.set("mode", mode());
       params.set("q", form.querySelector('[name="q"]').value);
+      params.set("exclude", form.querySelector('[name="exclude"]')?.value || "");
       params.set("k", form.querySelector('[name="k"]').value);
       build.action = "/indices/build?" + params.toString();
       build.querySelector("button").textContent = (states[scheme] === "missing" ? "Index " : "Reindex ") + (scheme === "dense" ? "CLIP" : scheme === "splade" ? "SPLADE" : "TF-IDF / Jaccard");

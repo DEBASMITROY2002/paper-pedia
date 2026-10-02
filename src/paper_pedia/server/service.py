@@ -127,16 +127,16 @@ def build_collection_index(venue, year, group="", force=False):
         try: return search_index.build_index(csv_path(venue, year, group), INDICES_DIR, force)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
 @operation
-def search_collection(venue, year, group, query, k=10, mode="sparse"):
+def search_collection(venue, year, group, query, k=10, mode="sparse", exclude=""):
     with collection_lock(str(csv_path(venue, year, group))):
         validate_selection(venue, year, group)
         try:
             path = csv_path(venue, year, group)
-            if mode == "dense": return clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k)
-            if mode == "splade": return splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k)
-            if mode == "subset": return jaccard.search(path, INDICES_DIR, query, k)
+            if mode == "dense": return clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k, exclude)
+            if mode == "splade": return splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k, exclude)
+            if mode == "subset": return jaccard.search(path, INDICES_DIR, query, k, exclude)
             if mode != "sparse": raise SelectionError("Unknown search method.")
-            return search_index.search(path, INDICES_DIR, query, k)
+            return search_index.search(path, INDICES_DIR, query, k, exclude)
         except search_index.IndexFailure as exc: raise IndexUnavailable(str(exc)) from exc
 
 def collection_splade_status(venue, year, group=""):
@@ -166,16 +166,16 @@ def indexed_collections(mode):
         if not path.name.endswith('.partial.csv') and engine.index_status(path, directory)['indexed']:
             yield path
 @operation
-def search_global(query, k=10, mode='sparse'):
-    if not query.strip() or len(query)>1000 or not 1<=k<=100: raise SelectionError('Enter a query and top k between 1 and 100.')
+def search_global(query, k=10, mode='sparse', exclude=''):
+    if not query.strip() or len(query)>1000 or len(exclude)>1000 or not 1<=k<=100: raise SelectionError('Enter a query and top k between 1 and 100.')
     best, searched, skipped = {}, 0, []
     for path in indexed_collections(mode):
         with collection_lock(str(path)):
             try:
-                if mode=='dense': rows=clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k)
-                elif mode=='splade': rows=splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k)
-                elif mode=='subset': rows=jaccard.search(path, INDICES_DIR, query, k)
-                else: rows=search_index.search(path, INDICES_DIR, query, k)
+                if mode=='dense': rows=clip_index.search(path, CLIP_INDICES_DIR, CLIP_MODEL_DIR, query, k, exclude)
+                elif mode=='splade': rows=splade_index.search(path, SPLADE_INDICES_DIR, SPLADE_MODEL_DIR, query, k, exclude)
+                elif mode=='subset': rows=jaccard.search(path, INDICES_DIR, query, k, exclude)
+                else: rows=search_index.search(path, INDICES_DIR, query, k, exclude)
             except search_index.IndexFailure:
                 logger.exception('Global search skipped collection=%s', path.name)
                 skipped.append(path.name)

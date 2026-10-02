@@ -95,7 +95,8 @@ def _query_counts(query):
         db.execute("INSERT INTO corpus(text) VALUES (?)", (normalize(query),))
         return dict(db.execute("SELECT term,cnt FROM vocabulary"))
 @operation
-def search(csv_path, directory, query, k=10):
+def search(csv_path, directory, query, k=10, exclude=""):
+    if len(exclude) > 1000: raise ValueError("Exclude concepts must be at most 1000 characters.")
     if not 1 <= k <= 100: raise ValueError("Top k must be between 1 and 100.")
     if not query.strip() or len(query) > 1000: raise ValueError("Enter a query between 1 and 1000 characters.")
     state = index_status(csv_path, directory)
@@ -105,14 +106,21 @@ def search(csv_path, directory, query, k=10):
     path = index_path(csv_path, directory)
     try:
         with closing(_connect(path)) as db:
-            placeholders = ",".join("?" for _ in counts)
-            weights = [(term, (1 + math.log(counts[term])) * idf) for term, idf in db.execute(f"SELECT term,idf FROM terms WHERE term IN ({placeholders})", tuple(counts))]
-            norm = math.sqrt(sum(weight * weight for _, weight in weights))
-            if not norm: return []
-            values = ",".join("(?,?)" for _ in weights)
-            params = [item for term, weight in weights for item in (term, weight / norm)]
-            matches = db.execute(f"WITH query(term,weight) AS (VALUES {values}), ranked AS (SELECT p.doc,SUM(p.weight*q.weight) AS score FROM postings p JOIN query q ON p.term=q.term GROUP BY p.doc ORDER BY score DESC,p.doc LIMIT ?) SELECT d.data,r.score FROM ranked r JOIN documents d ON d.doc=r.doc ORDER BY r.score DESC,r.doc", params + [k])
-            results = [{**json.loads(data), "score": min(1.0, max(0.0, score))} for data, score in matches]
+            def vector(text_counts):
+                if not text_counts: return {}
+                slots = ",".join("?" for _ in text_counts)
+                weights = {term: (1 + math.log(text_counts[term])) * idf for term, idf in db.execute(f"SELECT term,idf FROM terms WHERE term IN ({slots})", tuple(text_counts))}
+                norm = math.sqrt(sum(weight * weight for weight in weights.values()))
+                return {term: weight / norm for term, weight in weights.items()} if norm else {}
+            weights = vector(counts)
+            if not weights: return []
+            for term, weight in vector(_query_counts(exclude)).items(): weights[term] = weights.get(term, 0) - weight
+            weights = {term: weight for term, weight in weights.items() if weight}
+            if not weights: return []
+            db.execute("CREATE TEMP TABLE query (term TEXT PRIMARY KEY, weight REAL NOT NULL)")
+            db.executemany("INSERT INTO query VALUES (?,?)", weights.items())
+            matches = db.execute("WITH ranked AS (SELECT p.doc,SUM(p.weight*q.weight) AS score FROM postings p JOIN query q ON p.term=q.term GROUP BY p.doc HAVING score>0 ORDER BY score DESC,p.doc LIMIT ?) SELECT d.data,r.score FROM ranked r JOIN documents d ON d.doc=r.doc ORDER BY r.score DESC,r.doc", (k,))
+            results = [{**json.loads(data), "score": score} for data, score in matches]
         logger.info("Search completed collection=%s query_terms=%d top_k=%d returned=%d duration_ms=%.1f", Path(csv_path).name, len(counts), k, len(results), (time.perf_counter() - started) * 1000)
         return results
     except (OSError, sqlite3.Error, ValueError, TypeError) as exc:

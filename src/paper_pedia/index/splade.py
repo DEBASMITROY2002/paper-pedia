@@ -66,7 +66,8 @@ def build_index(csv_path, directory, model_dir, force=False):
     finally:
         if temp and temp.exists(): temp.unlink()
 @operation
-def search(csv_path, directory, model_dir, query, k=10):
+def search(csv_path, directory, model_dir, query, k=10, exclude=""):
+    if len(exclude) > 1000: raise ValueError("Exclude concepts must be at most 1000 characters.")
     if not 1 <= k <= 100 or not query.strip() or len(query) > 1000: raise ValueError("Enter a query (1–1000 characters) and top k between 1 and 100.")
     state = index_status(csv_path, directory)
     if not state["indexed"]: raise IndexFailure("Build or refresh this collection's SPLADE index before searching.")
@@ -74,14 +75,18 @@ def search(csv_path, directory, model_dir, query, k=10):
     started, path = time.perf_counter(), index_path(csv_path, directory)
     try:
         encoder = get_encoder(str(model_dir))
-        weights = encoder.encode([query])[0]
-        _validate(weights)
+        vectors = encoder.encode([query, exclude] if clean_text(exclude) else [query])
+        for vector in vectors: _validate(vector)
+        weights = dict(vectors[0])
+        if len(vectors) == 2:
+            for term, weight in vectors[1].items(): weights[term] = weights.get(term, 0) - weight
+        weights = {term: weight for term, weight in weights.items() if weight}
         if not weights: return []
         with closing(_connect(path)) as db:
             # A temporary query table avoids SQLite parameter limits for expanded queries.
             db.execute("CREATE TEMP TABLE query (term INTEGER PRIMARY KEY, weight REAL NOT NULL)")
             db.executemany("INSERT INTO query VALUES (?,?)", weights.items())
-            rows = db.execute("WITH ranked AS (SELECT p.doc,SUM(p.weight*q.weight) AS score FROM query q CROSS JOIN postings p ON p.term=q.term GROUP BY p.doc ORDER BY score DESC,p.doc LIMIT ?) SELECT d.data,r.score FROM ranked r JOIN documents d ON d.doc=r.doc ORDER BY r.score DESC,r.doc", (k,))
+            rows = db.execute("WITH ranked AS (SELECT p.doc,SUM(p.weight*q.weight) AS score FROM query q CROSS JOIN postings p ON p.term=q.term GROUP BY p.doc HAVING score>0 ORDER BY score DESC,p.doc LIMIT ?) SELECT d.data,r.score FROM ranked r JOIN documents d ON d.doc=r.doc ORDER BY r.score DESC,r.doc", (k,))
             results = [{**json.loads(data), "score": score} for data, score in rows]
         logger.info("SPLADE search completed collection=%s expanded_terms=%d returned=%d device=%s duration_ms=%.1f", Path(csv_path).name, len(weights), len(results), encoder.device, (time.perf_counter() - started) * 1000)
         return results
