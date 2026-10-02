@@ -5,11 +5,13 @@
 <title>{% block title %}Paper Pedia{% endblock %}</title>
 <link rel="icon" type="image/png" href="{{ url_for('static', path='/logo.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', path='/logo.png') }}">
+<script src="{{ asset_url('theme.js') }}"></script>
 <link rel="stylesheet" href="{{ asset_url('style.css') }}">
 <link rel="stylesheet" href="{{ asset_url('jobs.css') }}">
+<link rel="stylesheet" href="{{ asset_url('theme.css') }}">
 </head>
 <body>
-<nav class="topbar"><a class="brand" href="/"><img class="brand-logo" src="{{ url_for('static', path='/logo.png') }}" alt="" width="42" height="42"><span>Paper Pedia</span></a><span class="nav-note">Your local research library</span><a href="/search">Venue search</a><a href="/search?scope=global">Global search</a><a href="/docs">API docs ↗</a></nav>
+<nav class="topbar"><a class="brand" href="/"><img class="brand-logo" src="{{ url_for('static', path='/logo.png') }}" alt="" width="42" height="42"><span>Paper Pedia</span></a><span class="nav-note">Your local research library</span><a href="/search">Venue search</a><a href="/search?scope=global">Global search</a><a href="/docs">API docs ↗</a><button type="button" class="theme-toggle" id="theme-toggle" hidden>Dark mode</button></nav>
 <main class="container">{% block content %}{% endblock %}</main>
 <footer>Paper Pedia <span>·</span> Metadata from <a href="https://papers.cool/" target="_blank" rel="noopener noreferrer">Papers Cool</a> <span>·</span> Stored locally, ready to explore.</footer>
 <aside id="background-jobs" class="background-jobs" aria-label="Background tasks" hidden><div class="job-heading"><strong>Background tasks</strong><button type="button" id="jobs-minimize" aria-expanded="true">Minimize</button></div><div id="job-items"></div></aside>

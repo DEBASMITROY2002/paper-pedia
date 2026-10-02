@@ -213,6 +213,10 @@ The server stores only modified records in `src/data/annotations.sqlite3` as `pa
 
 Annotations use the existing Docker data mount and persist across container rebuilds. They are shared by everyone using this local server. API clients can batch-read with `POST /api/annotations/lookup` (`{"paper_ids": ["id"]}`) and update with `PATCH /api/annotations` (`{"paper_id": "id", "marked": true}` or `{"paper_id": "id", "comment": "note"}`). Missing keys in a lookup mean `false` and `""`.
 
+## Light and dark mode
+
+Use the **Dark mode / Light mode** button in the navigation bar to switch themes. The app follows your system appearance on the first visit, then remembers your choice in this browser and keeps other open tabs in sync. Both themes cover the dashboard, search results, notes, and background task panel.
+
 ## Your recent queries, ready to reuse
 
 Focus the search box or start typing to see matching previous queries. Paper Pedia remembers the latest **50 unique queries** in browser local storage and displays up to **eight suggestions** at a time. Choose one with a click or the arrow keys and Enter; Escape closes the dropdown.
